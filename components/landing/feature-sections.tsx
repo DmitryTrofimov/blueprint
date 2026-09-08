@@ -1,59 +1,19 @@
+import { AIGeneratedTasks } from "@/components/app/ai-generated-tasks";
+import { RouteMap } from "@/components/app/route-map";
 import { Card } from "@/components/ui/card";
-import { teamMembers } from "@/lib/mock-data";
+import { aiGeneratedTasks, routeMapEdges, routeMapNodes, teamMembers } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 import { Section, SectionHeader } from "./section";
 
-const aiGeneratedTasks = [
-  { category: "Strategy", color: "purple", task: "Define ICP and enterprise buyer persona" },
-  { category: "Finance", color: "blue", task: "Build pricing model with volume discounts" },
-  { category: "Docs", color: "pink", task: "Create technical onboarding documentation" },
-  { category: "Design", color: "orange", task: "Design enterprise dashboard UI" },
-  { category: "Engineering", color: "green", task: "Implement SSO and SCIM provisioning" },
-  { category: "Ops", color: "lavender", task: "Set up enterprise SLA and support tier" },
-];
-
-const categoryStyles: Record<string, { dot: string; badge: string }> = {
-  purple: { dot: "bg-violet-500", badge: "text-violet-400 bg-violet-500/10" },
-  blue: { dot: "bg-blue-500", badge: "text-blue-400 bg-blue-500/10" },
-  pink: { dot: "bg-pink-500", badge: "text-pink-400 bg-pink-500/10" },
-  orange: { dot: "bg-amber-500", badge: "text-amber-400 bg-amber-500/10" },
-  green: { dot: "bg-emerald-500", badge: "text-emerald-400 bg-emerald-500/10" },
-  lavender: { dot: "bg-indigo-400", badge: "text-indigo-300 bg-indigo-500/10" },
-};
-
 function AITaskBreakdownMockup() {
-  return (
-    <Card className="overflow-hidden p-5 glow-purple">
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-accent-purple to-accent-blue">
-            <span className="text-sm text-white" aria-hidden="true">✦</span>
-          </div>
-          <span className="text-sm font-medium text-accent-purple-light">AI Generated Tasks</span>
-        </div>
-        <span className="rounded-lg bg-white/5 px-2.5 py-1 text-xs text-muted">24 tasks</span>
-      </div>
+  return <AIGeneratedTasks tasks={aiGeneratedTasks} totalCount={24} />;
+}
 
-      <div className="space-y-2">
-        {aiGeneratedTasks.map((item) => {
-          const style = categoryStyles[item.color];
-          return (
-            <div
-              key={item.task}
-              className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-[#1c1c1f] px-4 py-3.5 transition-colors hover:border-white/10"
-            >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5">
-                <span className={cn("h-2.5 w-2.5 rounded-full", style.dot)} />
-              </div>
-              <p className="min-w-0 flex-1 text-sm text-foreground">{item.task}</p>
-              <span className={cn("shrink-0 rounded-lg px-2.5 py-1 text-xs font-medium", style.badge)}>
-                {item.category}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </Card>
+function RouteMapMockup() {
+  return (
+    <div id="route-map">
+      <RouteMap nodes={routeMapNodes} edges={routeMapEdges} />
+    </div>
   );
 }
 
@@ -107,90 +67,6 @@ function SmartAssignmentMockup() {
             </div>
           </div>
         ))}
-      </div>
-    </Card>
-  );
-}
-
-interface RouteNode {
-  id: string;
-  label: string;
-  x: number;
-  y: number;
-  color: string;
-  glowClass: string;
-  icon?: string;
-}
-
-function RouteMapMockup() {
-  const nodes: RouteNode[] = [
-    { id: "start", label: "Q4 Launch", x: 8, y: 50, color: "#7c3aed", glowClass: "node-glow-purple" },
-    { id: "strategy", label: "Strategy", x: 28, y: 22, color: "#3b82f6", glowClass: "node-glow-blue" },
-    { id: "icp", label: "ICP Research", x: 48, y: 12, color: "#3b82f6", glowClass: "node-glow-blue" },
-    { id: "gtm", label: "GTM Plan", x: 48, y: 32, color: "#3b82f6", glowClass: "node-glow-blue" },
-    { id: "design", label: "Design", x: 28, y: 50, color: "#ec4899", glowClass: "node-glow-pink" },
-    { id: "ui", label: "UI Design", x: 48, y: 50, color: "#ec4899", glowClass: "node-glow-pink" },
-    { id: "eng", label: "Engineering", x: 28, y: 78, color: "#f59e0b", glowClass: "node-glow-orange" },
-    { id: "api", label: "API Build", x: 48, y: 68, color: "#f59e0b", glowClass: "node-glow-orange" },
-    { id: "sso", label: "SSO Integration", x: 48, y: 88, color: "#f59e0b", glowClass: "node-glow-orange" },
-    { id: "launch", label: "Launch 🚀", x: 88, y: 50, color: "#10b981", glowClass: "node-glow-green" },
-  ];
-
-  const edges: [string, string][] = [
-    ["start", "strategy"],
-    ["start", "design"],
-    ["start", "eng"],
-    ["strategy", "icp"],
-    ["strategy", "gtm"],
-    ["design", "ui"],
-    ["eng", "api"],
-    ["eng", "sso"],
-    ["icp", "launch"],
-    ["gtm", "launch"],
-    ["ui", "launch"],
-    ["api", "launch"],
-    ["sso", "launch"],
-  ];
-
-  const nodeMap = Object.fromEntries(nodes.map((n) => [n.id, n]));
-
-  return (
-    <Card id="route-map" className="overflow-hidden p-0 glow-purple">
-      <div className="dot-grid relative p-6 md:p-8">
-        <svg viewBox="0 0 100 100" className="h-56 w-full md:h-72" aria-label="Project route map">
-          {edges.map(([from, to]) => {
-            const a = nodeMap[from];
-            const b = nodeMap[to];
-            if (!a || !b) return null;
-            return (
-              <line
-                key={`${from}-${to}`}
-                x1={a.x}
-                y1={a.y}
-                x2={b.x}
-                y2={b.y}
-                stroke="rgba(255,255,255,0.12)"
-                strokeWidth="0.3"
-                strokeDasharray="1.5,1"
-              />
-            );
-          })}
-          {nodes.map((node) => (
-            <g key={node.id} className={node.glowClass}>
-              <circle cx={node.x} cy={node.y} r="6" fill="none" stroke={node.color} strokeWidth="0.8" opacity="0.4" />
-              <circle cx={node.x} cy={node.y} r="4" fill={node.color} opacity="0.9" />
-              <circle cx={node.x} cy={node.y} r="1.5" fill="white" opacity="0.9" />
-              <text
-                x={node.x}
-                y={node.y + 9}
-                textAnchor="middle"
-                className="fill-muted text-[2.8px] font-medium"
-              >
-                {node.label}
-              </text>
-            </g>
-          ))}
-        </svg>
       </div>
     </Card>
   );

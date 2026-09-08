@@ -1,97 +1,105 @@
 import { Topbar } from "@/components/app/topbar";
-import { Card } from "@/components/ui/card";
-import { dashboardStats, getMemberById, project, tasks, teamMembers } from "@/lib/mock-data";
+import { AIGeneratedTasks } from "@/components/app/ai-generated-tasks";
+import { PanelCard } from "@/components/app/panel-card";
+import { RouteMap } from "@/components/app/route-map";
+import {
+  aiGeneratedTasks,
+  dashboardStats,
+  project,
+  routeMapEdges,
+  routeMapNodes,
+  teamAvatarColors,
+  teamMembers,
+} from "@/lib/mock-data";
+import { cn } from "@/lib/utils";
 
 export default function DashboardPage() {
-  const recentTasks = tasks.filter((t) => t.id !== "t1").slice(0, 5);
-
   return (
     <>
       <Topbar
         title="Dashboard"
         description={`${project.title} · ${project.progress}% complete`}
       />
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto bg-background p-6">
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <p className="text-sm text-muted">Active project</p>
+            <h2 className="text-xl font-semibold">{project.title}</h2>
+          </div>
+          <div className="flex items-center gap-1.5 rounded-full border border-accent-purple/30 bg-accent-purple/10 px-3 py-1">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent-purple" />
+            <span className="text-xs font-medium text-accent-purple-light">AI Active</span>
+          </div>
+        </div>
+
         <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { label: "Total Tasks", value: dashboardStats.totalTasks, color: "text-foreground" },
-            { label: "In Progress", value: dashboardStats.inProgressTasks, color: "text-accent-blue" },
-            { label: "Completed", value: dashboardStats.completedTasks, color: "text-accent-purple" },
-            { label: "AI Generated", value: dashboardStats.aiGeneratedTasks, color: "text-accent-purple" },
+            { label: "Total Tasks", value: dashboardStats.totalTasks, accent: "text-foreground" },
+            { label: "In Progress", value: dashboardStats.inProgressTasks, accent: "text-accent-blue" },
+            { label: "Completed", value: dashboardStats.completedTasks, accent: "text-accent-green" },
+            { label: "AI Generated", value: dashboardStats.aiGeneratedTasks, accent: "text-accent-purple-light" },
           ].map((stat) => (
-            <Card key={stat.label} className="p-5">
+            <PanelCard key={stat.label}>
               <p className="text-sm text-muted">{stat.label}</p>
-              <p className={`mt-1 text-3xl font-bold ${stat.color}`}>{stat.value}</p>
-            </Card>
+              <p className={cn("mt-1 text-3xl font-bold", stat.accent)}>{stat.value}</p>
+            </PanelCard>
           ))}
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
-          <Card className="lg:col-span-2 p-5">
-            <h2 className="mb-4 text-sm font-semibold">Recent Tasks</h2>
-            <div className="space-y-3">
-              {recentTasks.map((task) => {
-                const member = task.assigneeId ? getMemberById(task.assigneeId) : undefined;
-                return (
-                  <div
-                    key={task.id}
-                    className="flex items-center justify-between rounded-lg border border-card-border bg-background/40 px-4 py-3"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{task.title}</p>
-                      <p className="text-xs capitalize text-muted">{task.status.replace("_", " ")}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {task.aiGenerated && (
-                        <span className="rounded bg-accent-purple/20 px-1.5 py-0.5 text-[10px] font-medium text-accent-purple">
-                          AI
-                        </span>
-                      )}
-                      {member && (
-                        <div
-                          className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-accent-purple to-accent-blue text-[10px] font-bold text-white"
-                          title={member.name}
-                        >
-                          {member.initials}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
+        <div className="grid gap-6 xl:grid-cols-3">
+          <div className="xl:col-span-2">
+            <AIGeneratedTasks tasks={aiGeneratedTasks} totalCount={24} limit={4} />
+          </div>
 
-          <Card className="p-5">
-            <h2 className="mb-4 text-sm font-semibold">Team</h2>
-            <div className="space-y-3">
-              {teamMembers.map((member) => (
-                <div key={member.id} className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-accent-purple to-accent-blue text-xs font-bold text-white">
-                    {member.initials}
+          <div className="space-y-6">
+            <PanelCard>
+              <h2 className="mb-4 text-sm font-semibold">Team</h2>
+              <div className="space-y-3">
+                {teamMembers.map((member, i) => (
+                  <div key={member.id} className="flex items-center gap-3">
+                    <div
+                      className={cn(
+                        "flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br text-xs font-bold text-white",
+                        teamAvatarColors[i],
+                      )}
+                    >
+                      {member.initials}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{member.name}</p>
+                      <p className="text-xs text-muted">{member.role}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium">{member.name}</p>
-                    <p className="text-xs text-muted">{member.role}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
+                ))}
+              </div>
+            </PanelCard>
+
+            <PanelCard glow="purple">
+              <div className="mb-2 flex items-center justify-between">
+                <h2 className="text-sm font-semibold">Project Progress</h2>
+                <span className="text-sm font-bold text-accent-purple-light">{project.progress}%</span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-white/5">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-accent-purple to-accent-blue"
+                  style={{ width: `${project.progress}%` }}
+                />
+              </div>
+            </PanelCard>
+          </div>
         </div>
 
-        <Card className="mt-6 p-5">
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Project Progress</h2>
-            <span className="text-sm font-bold text-accent-purple">{project.progress}%</span>
+        <div className="mt-6">
+          <div className="mb-4">
+            <h2 className="text-sm font-semibold">Route Map Overview</h2>
+            <p className="text-sm text-muted">Execution path for {project.title}</p>
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-surface-elevated">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-accent-purple to-accent-blue transition-all"
-              style={{ width: `${project.progress}%` }}
-            />
-          </div>
-        </Card>
+          <RouteMap
+            nodes={routeMapNodes}
+            edges={routeMapEdges}
+            heightClassName="h-48 md:h-56"
+          />
+        </div>
       </main>
     </>
   );
