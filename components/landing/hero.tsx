@@ -1,7 +1,12 @@
+"use client";
+
+import { useAuthModal } from "./auth-modal-context";
 import { PrimaryButton, SecondaryButton } from "./cta-buttons";
 import { BoardMockup } from "./board-mockup";
 
 export function Hero() {
+  const { openSignup } = useAuthModal();
+
   return (
     <section id="product" className="relative overflow-hidden pt-28 pb-16 md:pt-36 md:pb-24">
       <div className="pointer-events-none absolute inset-0 hero-glow" />
@@ -25,8 +30,8 @@ export function Hero() {
           </p>
 
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <PrimaryButton href="/app" showArrow className="px-7 py-3.5">
-              Start for free
+            <PrimaryButton onClick={openSignup} showArrow className="px-7 py-3.5">
+              Start here
             </PrimaryButton>
             <SecondaryButton href="#how-it-works">See how it works</SecondaryButton>
           </div>

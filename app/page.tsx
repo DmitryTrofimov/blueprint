@@ -1,10 +1,11 @@
+import { AuthModalProvider } from "@/components/landing/auth-modal-context";
 import { FeatureSections } from "@/components/landing/feature-sections";
 import { Hero } from "@/components/landing/hero";
 import { Navbar } from "@/components/landing/navbar";
 
 export default function Home() {
   return (
-    <>
+    <AuthModalProvider>
       <Navbar />
       <main>
         <Hero />
@@ -25,6 +26,6 @@ export default function Home() {
           </p>
         </div>
       </footer>
-    </>
+    </AuthModalProvider>
   );
 }

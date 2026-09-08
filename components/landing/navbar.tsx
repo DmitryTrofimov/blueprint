@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useAuthModal } from "./auth-modal-context";
 import { GhostButton, PrimaryButton } from "./cta-buttons";
 
 const navLinks = [
@@ -10,6 +13,8 @@ const navLinks = [
 ];
 
 export function Navbar() {
+  const { openLogin, openSignup } = useAuthModal();
+
   return (
     <header className="fixed top-0 z-50 w-full bg-background/60 backdrop-blur-xl">
       <nav
@@ -38,10 +43,10 @@ export function Navbar() {
         </div>
 
         <div className="flex items-center gap-3">
-          <GhostButton href="/app" className="hidden sm:inline-flex">
+          <GhostButton onClick={openLogin} className="hidden sm:inline-flex">
             Log in
           </GhostButton>
-          <PrimaryButton href="/app" className="px-4 py-2.5 text-sm">
+          <PrimaryButton onClick={openSignup} className="px-4 py-2.5 text-sm">
             Get Started
           </PrimaryButton>
         </div>
