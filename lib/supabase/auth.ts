@@ -13,6 +13,15 @@ export interface AuthResult<T = { user: User | null; session: Session | null }> 
   error: AuthError | null;
 }
 
+export interface OAuthResult {
+  data: { url: string | null } | null;
+  error: AuthError | null;
+}
+
+function getAuthCallbackUrl(): string {
+  return `${window.location.origin}/auth/callback?next=/app`;
+}
+
 export function getAuthErrorMessage(error: AuthError | null): string {
   if (!error) return "Something went wrong. Please try again.";
 
@@ -41,9 +50,21 @@ export async function signInWithEmail(
   return { data, error };
 }
 
+export async function signInWithGoogle(): Promise<OAuthResult> {
+  const supabase = createClient();
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: getAuthCallbackUrl(),
+    },
+  });
+
+  return { data: data ? { url: data.url } : null, error };
+}
+
 export async function signUpWithEmail(params: SignUpParams): Promise<AuthResult> {
   const supabase = createClient();
-  const redirectTo = `${window.location.origin}/auth/callback?next=/app`;
+  const redirectTo = getAuthCallbackUrl();
 
   const { data, error } = await supabase.auth.signUp({
     email: params.email.trim(),

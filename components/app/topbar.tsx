@@ -1,9 +1,31 @@
+"use client";
+
+import { signOut } from "@/lib/supabase/auth";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+
 interface TopbarProps {
   title: string;
   description?: string;
 }
 
 export function Topbar({ title, description }: TopbarProps) {
+  const router = useRouter();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogOut = async () => {
+    setIsLoggingOut(true);
+    const { error } = await signOut();
+    setIsLoggingOut(false);
+
+    if (error) {
+      return;
+    }
+
+    router.push("/");
+    router.refresh();
+  };
+
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b border-card-border bg-surface/50 px-6 backdrop-blur-sm">
       <div>
@@ -24,9 +46,11 @@ export function Topbar({ title, description }: TopbarProps) {
         </button>
         <button
           type="button"
-          className="rounded-xl bg-gradient-to-r from-accent-purple to-[#6366f1] px-4 py-2 text-sm font-medium text-white shadow-lg shadow-accent-purple/20 transition-all hover:brightness-110"
+          onClick={handleLogOut}
+          disabled={isLoggingOut}
+          className="rounded-xl bg-gradient-to-r from-accent-purple to-[#6366f1] px-4 py-2 text-sm font-medium text-white shadow-lg shadow-accent-purple/20 transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100"
         >
-          + New Task
+          {isLoggingOut ? "Logging out..." : "Log out"}
         </button>
       </div>
     </header>
