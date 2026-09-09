@@ -1,5 +1,5 @@
 import type { AuthError, Session, User } from "@supabase/supabase-js";
-import { createClient } from "./client";
+import { createClient } from "@/lib/supabase/client";
 
 export interface SignUpParams {
   email: string;
@@ -18,8 +18,13 @@ export interface OAuthResult {
   error: AuthError | null;
 }
 
-function getAuthCallbackUrl(): string {
-  return `${window.location.origin}/auth/callback?next=/app`;
+function getAuthCallbackUrl(role?: string): string {
+  const callbackUrl = new URL("/auth/callback", window.location.origin);
+  callbackUrl.searchParams.set("next", "/app");
+  if (role) {
+    callbackUrl.searchParams.set("role", role);
+  }
+  return callbackUrl.toString();
 }
 
 export function getAuthErrorMessage(error: AuthError | null): string {
@@ -50,12 +55,13 @@ export async function signInWithEmail(
   return { data, error };
 }
 
-export async function signInWithGoogle(): Promise<OAuthResult> {
+export async function signInWithGoogle(role?: string): Promise<OAuthResult> {
   const supabase = createClient();
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: getAuthCallbackUrl(),
+      redirectTo: getAuthCallbackUrl(role),
+      skipBrowserRedirect: true,
     },
   });
 

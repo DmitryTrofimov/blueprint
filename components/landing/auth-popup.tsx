@@ -168,9 +168,28 @@ export function AuthPopup({ mode, onClose, onSwitchMode }: AuthPopupProps) {
   const handleGoogleSignIn = async () => {
     setFormError(null);
     setSuccessMessage(null);
+
+    if (!isLogin) {
+      setSignupTouched((prev) => ({ ...prev, role: true }));
+      const roleError = validateSignupField("role", signupValues);
+      setSignupErrors((prev) => {
+        const updated = { ...prev };
+        if (roleError) updated.role = roleError;
+        else delete updated.role;
+        return updated;
+      });
+
+      if (roleError) {
+        setFormError(roleError);
+        return;
+      }
+    }
+
     setIsGoogleLoading(true);
 
-    const { data, error } = await signInWithGoogle();
+    const { data, error } = await signInWithGoogle(
+      isLogin ? undefined : signupValues.role,
+    );
     setIsGoogleLoading(false);
 
     if (error) {
