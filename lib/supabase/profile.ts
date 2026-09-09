@@ -1,3 +1,4 @@
+import type { User } from "@supabase/supabase-js";
 import { createClient } from "./server";
 
 export interface UserProfile {
@@ -19,6 +20,23 @@ function getEmailPrefix(email: string | undefined): string | null {
   return prefix || null;
 }
 
+function getMetadataString(metadata: Record<string, unknown>, key: string): string | null {
+  const value = metadata[key];
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed || null;
+}
+
+function getDisplayNameFromOAuthUser(user: User): string | null {
+  const metadata = user.user_metadata ?? {};
+  return (
+    getMetadataString(metadata, "username") ||
+    getMetadataString(metadata, "full_name") ||
+    getMetadataString(metadata, "name") ||
+    getMetadataString(metadata, "preferred_username")
+  );
+}
+
 export async function getCurrentUserProfile(): Promise<UserProfile> {
   const supabase = await createClient();
   const {
@@ -37,6 +55,7 @@ export async function getCurrentUserProfile(): Promise<UserProfile> {
 
   const username =
     profile?.username?.trim() ||
+    getDisplayNameFromOAuthUser(user) ||
     getEmailPrefix(user.email) ||
     "User";
   const role = profile?.role?.trim() || "Member";
