@@ -44,7 +44,13 @@ const navItems = [
   },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  username: string;
+  role: string;
+  initials: string;
+}
+
+export function Sidebar({ username, role, initials }: SidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -88,11 +94,11 @@ export function Sidebar() {
       <div className="border-t border-card-border p-4">
         <div className="flex items-center gap-3 rounded-lg px-3 py-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-accent-purple to-accent-blue text-xs font-bold text-white">
-            AC
+            {initials}
           </div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium">Alex Chen</p>
-            <p className="truncate text-xs text-muted">Engineering Lead</p>
+            <p className="truncate text-sm font-medium">{username}</p>
+            <p className="truncate text-xs text-muted">{role}</p>
           </div>
         </div>
       </div>
