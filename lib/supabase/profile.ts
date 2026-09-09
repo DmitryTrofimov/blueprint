@@ -1,68 +1,65 @@
-import type { User } from "@supabase/supabase-js";
-import { createClient } from "./server";
+import { createClient } from "@/lib/supabase/client";
 
-export interface UserProfile {
+export interface UpdatedProfile {
   username: string;
-  role: string;
-  initials: string;
+  roleId: string;
+  roleName: string;
 }
 
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "U";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-}
-
-function getEmailPrefix(email: string | undefined): string | null {
-  if (!email) return null;
-  const prefix = email.split("@")[0]?.trim();
-  return prefix || null;
-}
-
-function getMetadataString(metadata: Record<string, unknown>, key: string): string | null {
-  const value = metadata[key];
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return trimmed || null;
-}
-
-function getDisplayNameFromOAuthUser(user: User): string | null {
-  const metadata = user.user_metadata ?? {};
-  return (
-    getMetadataString(metadata, "username") ||
-    getMetadataString(metadata, "full_name") ||
-    getMetadataString(metadata, "name") ||
-    getMetadataString(metadata, "preferred_username")
-  );
-}
-
-export async function getCurrentUserProfile(): Promise<UserProfile> {
-  const supabase = await createClient();
+export async function updateCurrentUserProfile(params: {
+  username: string;
+  roleId: string;
+}): Promise<{ data: UpdatedProfile | null; error: string | null }> {
+  const supabase = createClient();
   const {
     data: { user },
+    error: userError,
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    return { username: "User", role: "Member", initials: "U" };
+  if (userError || !user) {
+    return { data: null, error: "You must be signed in to update your profile." };
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("username, role")
-    .eq("id", user.id)
+  const { data: roleRow, error: roleError } = await supabase
+    .from("roles")
+    .select("id, name")
+    .eq("id", params.roleId)
     .maybeSingle();
 
-  const username =
-    profile?.username?.trim() ||
-    getDisplayNameFromOAuthUser(user) ||
-    getEmailPrefix(user.email) ||
-    "User";
-  const role = profile?.role?.trim() || "Member";
+  if (roleError) {
+    return { data: null, error: roleError.message };
+  }
+
+  if (!roleRow) {
+    return { data: null, error: "Please select a valid role." };
+  }
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({
+      username: params.username.trim(),
+      role_id: params.roleId,
+    })
+    .eq("id", user.id)
+    .select("username, role_id, roles(name)")
+    .single();
+
+  if (error) {
+    return { data: null, error: error.message };
+  }
+
+  const rolesJoin = data.roles as { name: string } | { name: string }[] | null;
+  const joinedRoleName = Array.isArray(rolesJoin)
+    ? rolesJoin[0]?.name
+    : rolesJoin?.name;
+  const roleName = joinedRoleName?.trim() || roleRow.name;
 
   return {
-    username,
-    role,
-    initials: getInitials(username),
+    data: {
+      username: data.username,
+      roleId: data.role_id,
+      roleName,
+    },
+    error: null,
   };
 }

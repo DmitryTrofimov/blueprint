@@ -5,6 +5,7 @@ import { ROLE_OPTIONS, type RoleOption } from "@/lib/auth-validation";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase/env";
 
 const DEFAULT_NEXT = "/app";
+const DEFAULT_OAUTH_ROLE = "Reviewer";
 
 function getSafeNext(next: string | null): string {
   if (next && next.startsWith("/")) {
@@ -33,12 +34,10 @@ function getUsernameFromOAuthUser(user: User): string {
   return preferredName || "User";
 }
 
-async function applyOAuthRoleToProfile(
+async function applyOAuthProfileUpdates(
   supabase: ReturnType<typeof createServerClient>,
   selectedRole: string | null,
 ) {
-  if (!selectedRole) return;
-
   const {
     data: { user },
     error: userError,
@@ -47,17 +46,35 @@ async function applyOAuthRoleToProfile(
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("username, role")
+    .select("username, role_id")
     .eq("id", user.id)
     .maybeSingle();
 
-  if (!profile || profile.role?.trim()) return;
+  if (!profile) return;
 
+  const updates: { username?: string; role_id?: string } = {};
   const username = profile.username?.trim() || getUsernameFromOAuthUser(user);
-  await supabase
-    .from("profiles")
-    .update({ username, role: selectedRole })
-    .eq("id", user.id);
+
+  if (username && username !== profile.username?.trim()) {
+    updates.username = username;
+  }
+
+  if (!profile.role_id) {
+    const roleName = selectedRole ?? DEFAULT_OAUTH_ROLE;
+    const { data: roleRow } = await supabase
+      .from("roles")
+      .select("id")
+      .eq("name", roleName)
+      .maybeSingle();
+
+    if (roleRow) {
+      updates.role_id = roleRow.id;
+    }
+  }
+
+  if (Object.keys(updates).length === 0) return;
+
+  await supabase.from("profiles").update(updates).eq("id", user.id);
 }
 
 export async function GET(request: NextRequest) {
@@ -86,7 +103,7 @@ export async function GET(request: NextRequest) {
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      await applyOAuthRoleToProfile(supabase, selectedRole);
+      await applyOAuthProfileUpdates(supabase, selectedRole);
       return redirectResponse;
     }
   }
@@ -97,7 +114,7 @@ export async function GET(request: NextRequest) {
       type: type as EmailOtpType,
     });
     if (!error) {
-      await applyOAuthRoleToProfile(supabase, selectedRole);
+      await applyOAuthProfileUpdates(supabase, selectedRole);
       return redirectResponse;
     }
   }

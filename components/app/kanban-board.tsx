@@ -1,20 +1,20 @@
 import type { BoardColumn } from "@/types/board";
 import { cn } from "@/lib/utils";
-import { TaskBoardCard } from "./task-board-card";
+import { KanbanCard } from "./kanban-card";
 
-interface TaskBoardProps {
+interface KanbanBoardProps {
   columns: BoardColumn[];
   title?: string;
   showChrome?: boolean;
   className?: string;
 }
 
-export function TaskBoard({
+export function KanbanBoard({
   columns,
-  title = "Q4 Product Launch — AI Task Board",
+  title = "Q4 Product Launch — AI Board",
   showChrome = true,
   className,
-}: TaskBoardProps) {
+}: KanbanBoardProps) {
   return (
     <div
       className={cn(
@@ -50,7 +50,7 @@ export function TaskBoard({
 
             <div className="space-y-2.5">
               {col.tasks.map((task) => (
-                <TaskBoardCard key={task.id} task={task} columnId={col.id} />
+                <KanbanCard key={task.id} task={task} columnId={col.id} />
               ))}
             </div>
 

@@ -1,5 +1,5 @@
 import { Sidebar } from "@/components/app/sidebar";
-import { getCurrentUserProfile } from "@/lib/supabase/profile";
+import { getCurrentUserProfile } from "@/lib/supabase/profile-server";
 
 export default async function AppLayout({ children }: LayoutProps<"/app">) {
   const profile = await getCurrentUserProfile();

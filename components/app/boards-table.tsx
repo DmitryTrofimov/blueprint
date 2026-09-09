@@ -1,11 +1,11 @@
 "use client";
 
-import type { TaskBoardItem } from "@/types/board";
+import type { BoardItem } from "@/types/board";
 import {
-  createTaskBoard,
-  deleteTaskBoard,
-  updateTaskBoard,
-} from "@/lib/supabase/task-boards";
+  createBoard,
+  deleteBoard,
+  updateBoard,
+} from "@/lib/supabase/boards";
 import { cn } from "@/lib/utils";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
@@ -16,9 +16,9 @@ interface BoardFormValues {
 
 const EMPTY_FORM: BoardFormValues = { name: "", description: "" };
 
-interface TaskBoardsTableProps {
+interface BoardsTableProps {
   createdBy: string;
-  initialBoards: TaskBoardItem[];
+  initialBoards: BoardItem[];
   initialError?: string | null;
 }
 
@@ -29,16 +29,16 @@ function formatDate(iso: string): string {
   }).format(new Date(iso));
 }
 
-export function TaskBoardsTable({
+export function BoardsTable({
   createdBy,
   initialBoards,
   initialError = null,
-}: TaskBoardsTableProps) {
+}: BoardsTableProps) {
   const titleId = useId();
   const descId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
 
-  const [boards, setBoards] = useState<TaskBoardItem[]>(initialBoards);
+  const [boards, setBoards] = useState<BoardItem[]>(initialBoards);
   const [isSaving, setIsSaving] = useState(false);
   const [actionError, setActionError] = useState<string | null>(initialError);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -93,7 +93,7 @@ export function TaskBoardsTable({
 
     setIsSaving(true);
     setActionError(null);
-    const { data, error } = await createTaskBoard({
+    const { data, error } = await createBoard({
       name,
       description: createForm.description.trim(),
       createdByName: createdBy,
@@ -109,7 +109,7 @@ export function TaskBoardsTable({
     closeCreateModal();
   };
 
-  const startEdit = (board: TaskBoardItem) => {
+  const startEdit = (board: BoardItem) => {
     setEditingId(board.id);
     setEditForm({ name: board.name, description: board.description });
     setEditError(null);
@@ -130,7 +130,7 @@ export function TaskBoardsTable({
 
     setIsSaving(true);
     setActionError(null);
-    const { data, error } = await updateTaskBoard({
+    const { data, error } = await updateBoard({
       id: boardId,
       name,
       description: editForm.description.trim(),
@@ -146,13 +146,13 @@ export function TaskBoardsTable({
     cancelEdit();
   };
 
-  const handleDelete = async (board: TaskBoardItem) => {
+  const handleDelete = async (board: BoardItem) => {
     const confirmed = window.confirm(`Delete board "${board.name}"?`);
     if (!confirmed) return;
 
     setIsSaving(true);
     setActionError(null);
-    const { error } = await deleteTaskBoard(board.id);
+    const { error } = await deleteBoard(board.id);
     setIsSaving(false);
 
     if (error) {

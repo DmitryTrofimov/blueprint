@@ -1,7 +1,7 @@
-import type { TaskBoardItem } from "@/types/board";
+import type { BoardItem } from "@/types/board";
 import { createClient } from "./server";
 
-interface TaskBoardRow {
+interface BoardRow {
   id: string;
   name: string;
   description: string;
@@ -11,7 +11,7 @@ interface TaskBoardRow {
   created_by_name: string;
 }
 
-function mapRowToItem(row: TaskBoardRow): TaskBoardItem {
+function mapRowToItem(row: BoardRow): BoardItem {
   return {
     id: row.id,
     name: row.name,
@@ -22,13 +22,13 @@ function mapRowToItem(row: TaskBoardRow): TaskBoardItem {
   };
 }
 
-export async function listTaskBoardsServer(): Promise<{
-  data: TaskBoardItem[];
+export async function listBoardsServer(): Promise<{
+  data: BoardItem[];
   error: string | null;
 }> {
   const supabase = await createClient();
   const { data, error } = await supabase
-    .from("task_boards")
+    .from("boards")
     .select("id, name, description, created_at, updated_at, created_by, created_by_name")
     .order("created_at", { ascending: false });
 
@@ -37,7 +37,7 @@ export async function listTaskBoardsServer(): Promise<{
   }
 
   return {
-    data: (data as TaskBoardRow[]).map(mapRowToItem),
+    data: (data as BoardRow[]).map(mapRowToItem),
     error: null,
   };
 }

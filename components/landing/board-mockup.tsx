@@ -1,6 +1,6 @@
-import { TaskBoard } from "@/components/app/task-board";
+import { KanbanBoard } from "@/components/app/kanban-board";
 import { boardColumns } from "@/lib/mock-data";
 
 export function BoardMockup() {
-  return <TaskBoard columns={boardColumns} />;
+  return <KanbanBoard columns={boardColumns} />;
 }

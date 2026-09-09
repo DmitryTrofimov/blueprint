@@ -123,7 +123,7 @@ function UnifiedBoardMockup() {
           <span className="h-2.5 w-2.5 rounded-full bg-amber-500/80" />
           <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/80" />
         </div>
-        <p className="text-xs text-muted">Unified Task Board</p>
+        <p className="text-xs text-muted">Boards</p>
         <div className="flex items-center gap-1.5">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
           <span className="text-[11px] text-muted">Live</span>
@@ -233,7 +233,7 @@ export function FeatureSections() {
       <Section>
         <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-20">
           <SectionHeader
-            eyebrow="Unified Task Board"
+            eyebrow="Boards"
             title="Simple board, powerful execution"
             description="An elegant, AI-first Kanban board that keeps planning lightweight and execution clear — built for modern teams who want to move fast."
           />

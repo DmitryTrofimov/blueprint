@@ -1,7 +1,7 @@
-import type { TaskBoardItem } from "@/types/board";
+import type { BoardItem } from "@/types/board";
 import { createClient } from "@/lib/supabase/client";
 
-interface TaskBoardRow {
+interface BoardRow {
   id: string;
   name: string;
   description: string;
@@ -11,7 +11,7 @@ interface TaskBoardRow {
   created_by_name: string;
 }
 
-function mapRowToItem(row: TaskBoardRow): TaskBoardItem {
+function mapRowToItem(row: BoardRow): BoardItem {
   return {
     id: row.id,
     name: row.name,
@@ -22,13 +22,13 @@ function mapRowToItem(row: TaskBoardRow): TaskBoardItem {
   };
 }
 
-export async function listTaskBoards(): Promise<{
-  data: TaskBoardItem[] | null;
+export async function listBoards(): Promise<{
+  data: BoardItem[] | null;
   error: string | null;
 }> {
   const supabase = createClient();
   const { data, error } = await supabase
-    .from("task_boards")
+    .from("boards")
     .select("id, name, description, created_at, updated_at, created_by, created_by_name")
     .order("created_at", { ascending: false });
 
@@ -37,16 +37,16 @@ export async function listTaskBoards(): Promise<{
   }
 
   return {
-    data: (data as TaskBoardRow[]).map(mapRowToItem),
+    data: (data as BoardRow[]).map(mapRowToItem),
     error: null,
   };
 }
 
-export async function createTaskBoard(params: {
+export async function createBoard(params: {
   name: string;
   description: string;
   createdByName: string;
-}): Promise<{ data: TaskBoardItem | null; error: string | null }> {
+}): Promise<{ data: BoardItem | null; error: string | null }> {
   const supabase = createClient();
   const {
     data: { user },
@@ -58,7 +58,7 @@ export async function createTaskBoard(params: {
   }
 
   const { data, error } = await supabase
-    .from("task_boards")
+    .from("boards")
     .insert({
       name: params.name,
       description: params.description,
@@ -72,17 +72,17 @@ export async function createTaskBoard(params: {
     return { data: null, error: error.message };
   }
 
-  return { data: mapRowToItem(data as TaskBoardRow), error: null };
+  return { data: mapRowToItem(data as BoardRow), error: null };
 }
 
-export async function updateTaskBoard(params: {
+export async function updateBoard(params: {
   id: string;
   name: string;
   description: string;
-}): Promise<{ data: TaskBoardItem | null; error: string | null }> {
+}): Promise<{ data: BoardItem | null; error: string | null }> {
   const supabase = createClient();
   const { data, error } = await supabase
-    .from("task_boards")
+    .from("boards")
     .update({
       name: params.name,
       description: params.description,
@@ -95,14 +95,14 @@ export async function updateTaskBoard(params: {
     return { data: null, error: error.message };
   }
 
-  return { data: mapRowToItem(data as TaskBoardRow), error: null };
+  return { data: mapRowToItem(data as BoardRow), error: null };
 }
 
-export async function deleteTaskBoard(
+export async function deleteBoard(
   id: string,
 ): Promise<{ error: string | null }> {
   const supabase = createClient();
-  const { error } = await supabase.from("task_boards").delete().eq("id", id);
+  const { error } = await supabase.from("boards").delete().eq("id", id);
 
   if (error) {
     return { error: error.message };

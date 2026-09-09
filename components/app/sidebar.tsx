@@ -15,8 +15,8 @@ const navItems = [
     ),
   },
   {
-    href: "/app/board",
-    label: "Board",
+    href: "/app/boards",
+    label: "Boards",
     icon: (
       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 0v10m0-10a2 2 0 012-2h2a2 2 0 012 2v10a2 2 0 01-2 2h-2a2 2 0 01-2-2" />
@@ -92,15 +92,23 @@ export function Sidebar({ username, role, initials }: SidebarProps) {
       </nav>
 
       <div className="border-t border-card-border p-4">
-        <div className="flex items-center gap-3 rounded-lg px-3 py-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-accent-purple to-accent-blue text-xs font-bold text-white">
+        <Link
+          href="/app/profile"
+          className={cn(
+            "flex items-center gap-3 rounded-lg px-3 py-2 transition-colors",
+            pathname === "/app/profile"
+              ? "bg-accent-purple/10 text-accent-purple-light"
+              : "text-foreground hover:bg-white/5",
+          )}
+        >
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent-purple to-accent-blue text-xs font-bold text-white">
             {initials}
           </div>
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{username}</p>
             <p className="truncate text-xs text-muted">{role}</p>
           </div>
-        </div>
+        </Link>
       </div>
     </aside>
   );

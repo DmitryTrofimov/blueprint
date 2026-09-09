@@ -12,12 +12,12 @@ const progressBarColor: Record<string, string> = {
   review: "bg-accent-orange",
 };
 
-interface TaskBoardCardProps {
+interface KanbanCardProps {
   task: BoardTask;
   columnId: string;
 }
 
-export function TaskBoardCard({ task, columnId }: TaskBoardCardProps) {
+export function KanbanCard({ task, columnId }: KanbanCardProps) {
   return (
     <div className="rounded-xl border border-white/[0.06] bg-[#1c1c1f] p-3.5 transition-colors hover:border-white/10">
       <div className="mb-2.5 flex items-start justify-between gap-2">

@@ -1,8 +1,32 @@
+-- Roles lookup table
+create table if not exists public.roles (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique
+);
+
+insert into public.roles (name) values
+  ('Backend Developer'),
+  ('DevOps Engineer'),
+  ('Frontend Developer'),
+  ('Manager'),
+  ('QA Engineer'),
+  ('Reviewer'),
+  ('UI/UX')
+on conflict (name) do nothing;
+
+alter table public.roles enable row level security;
+
+create policy "Authenticated users can read roles"
+  on public.roles
+  for select
+  to authenticated
+  using (true);
+
 -- Profiles table linked to auth.users
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   username text not null,
-  role text not null,
+  role_id uuid references public.roles (id) on delete set null,
   created_at timestamptz not null default now()
 );
 
@@ -25,12 +49,25 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  selected_role_name text;
+  selected_role_id uuid;
+  auth_provider text;
 begin
-  insert into public.profiles (id, username, role)
+  selected_role_name := nullif(trim(coalesce(new.raw_user_meta_data ->> 'role', '')), '');
+  auth_provider := coalesce(new.raw_app_meta_data ->> 'provider', '');
+
+  if selected_role_name is not null then
+    select id into selected_role_id from public.roles where name = selected_role_name;
+  elsif auth_provider = 'google' then
+    select id into selected_role_id from public.roles where name = 'Reviewer';
+  end if;
+
+  insert into public.profiles (id, username, role_id)
   values (
     new.id,
     coalesce(new.raw_user_meta_data ->> 'username', ''),
-    coalesce(new.raw_user_meta_data ->> 'role', '')
+    selected_role_id
   );
   return new;
 end;
