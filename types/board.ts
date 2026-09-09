@@ -1,3 +1,12 @@
+export interface TaskBoardItem {
+  id: string;
+  name: string;
+  description: string;
+  createdAt: string;
+  createdBy: string;
+  updatedAt?: string;
+}
+
 export type BoardPriority = "high" | "med" | "low";
 
 export interface BoardTask {

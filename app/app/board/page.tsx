@@ -1,13 +1,23 @@
-import { TaskBoard } from "@/components/app/task-board";
+import { TaskBoardsTable } from "@/components/app/task-boards-table";
 import { Topbar } from "@/components/app/topbar";
-import { boardColumns } from "@/lib/mock-data";
+import { getCurrentUserProfile } from "@/lib/supabase/profile";
+import { listTaskBoardsServer } from "@/lib/supabase/task-boards-server";
 
-export default function BoardPage() {
+export default async function BoardPage() {
+  const [profile, boardsResult] = await Promise.all([
+    getCurrentUserProfile(),
+    listTaskBoardsServer(),
+  ]);
+
   return (
     <>
-      <Topbar title="Task Board" description="Q4 Product Launch — AI Task Board" />
+      <Topbar title="Task Boards" description="Create and manage your task boards" />
       <main className="flex-1 overflow-x-auto bg-background p-6">
-        <TaskBoard columns={boardColumns} showChrome={false} />
+        <TaskBoardsTable
+          createdBy={profile.username}
+          initialBoards={boardsResult.data}
+          initialError={boardsResult.error}
+        />
       </main>
     </>
   );
