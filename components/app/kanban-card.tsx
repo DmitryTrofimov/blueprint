@@ -29,10 +29,11 @@ const progressBarColor: Record<string, string> = {
 interface KanbanCardProps {
   task: BoardTask;
   columnId: string;
+  hideProgress?: boolean;
   onClick?: () => void;
 }
 
-export function KanbanCard({ task, columnId, onClick }: KanbanCardProps) {
+export function KanbanCard({ task, columnId, hideProgress = false, onClick }: KanbanCardProps) {
   const priorityDisplay = getTaskPriorityDisplay(task);
 
   const className = cn(
@@ -84,7 +85,7 @@ export function KanbanCard({ task, columnId, onClick }: KanbanCardProps) {
         </div>
       )}
 
-      {task.progress !== undefined && (
+      {!hideProgress && task.progress !== undefined && (
         <div className="mt-3">
           <div className="h-1 overflow-hidden rounded-full bg-white/5">
             <div

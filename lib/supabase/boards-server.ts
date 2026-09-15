@@ -87,6 +87,8 @@ interface TaskRow {
   priority_id: string | null;
   created_by_name: string;
   assigned_to: string | null;
+  deadline: string | null;
+  progress: number;
   task_priority: { name: string } | { name: string }[] | null;
 }
 
@@ -152,7 +154,7 @@ export async function getBoardKanbanColumns(boardId: string): Promise<{
     supabase
       .from("tasks")
       .select(
-        "id, title, description, tags, status_id, priority_id, created_by_name, assigned_to, task_priority(name)",
+        "id, title, description, tags, status_id, priority_id, created_by_name, assigned_to, deadline, progress, task_priority(name)",
       )
       .eq("board_id", boardId)
       .order("created_at", { ascending: true }),
@@ -208,6 +210,8 @@ export async function getBoardKanbanColumns(boardId: string): Promise<{
           priorityName,
           columnKey,
           tags: normalizeTaskTags(task.tags ?? []),
+          deadline: task.deadline ?? undefined,
+          progress: task.progress,
         });
       }),
     };

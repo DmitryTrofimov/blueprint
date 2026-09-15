@@ -49,7 +49,7 @@ export default async function BoardDetailPage({ params }: BoardPageProps) {
         title={board.name}
         description={board.description || "Task board"}
       />
-      <main className="flex flex-1 flex-col overflow-hidden bg-background p-6">
+      <main className="flex flex-1 flex-col overflow-y-auto bg-background p-6">
         <div className="mb-4 flex items-center gap-3 text-sm text-muted">
           <Link
             href="/app/boards"

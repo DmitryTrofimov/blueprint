@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 interface KanbanDraggableTaskProps {
   task: BoardTask;
   columnId: string;
+  hideProgress?: boolean;
   onEdit: () => void;
   disabled?: boolean;
 }
@@ -16,6 +17,7 @@ interface KanbanDraggableTaskProps {
 export function KanbanDraggableTask({
   task,
   columnId,
+  hideProgress = false,
   onEdit,
   disabled = false,
 }: KanbanDraggableTaskProps) {
@@ -25,9 +27,11 @@ export function KanbanDraggableTask({
     disabled,
   });
 
-  const style = transform
-    ? { transform: CSS.Translate.toString(transform) }
-    : undefined;
+  const style: React.CSSProperties | undefined = isDragging
+    ? { opacity: 0 }
+    : transform
+      ? { transform: CSS.Translate.toString(transform) }
+      : undefined;
 
   return (
     <div
@@ -35,13 +39,18 @@ export function KanbanDraggableTask({
       style={style}
       className={cn(
         "touch-none",
-        isDragging && "relative z-10 opacity-40",
+        isDragging && "pointer-events-none",
         !disabled && "cursor-grab active:cursor-grabbing",
       )}
       {...listeners}
       {...attributes}
     >
-      <KanbanCard task={task} columnId={columnId} onClick={onEdit} />
+      <KanbanCard
+        task={task}
+        columnId={columnId}
+        hideProgress={hideProgress}
+        onClick={onEdit}
+      />
     </div>
   );
 }

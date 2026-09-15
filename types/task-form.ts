@@ -16,6 +16,10 @@ export interface CreateTaskFormValues {
   statusId: string;
   priorityId: string;
   assignedTo: string;
+  /** YYYY-MM-DD, today or later */
+  deadline: string;
+  /** 0–100, step 5; forced to 0 for ToDo */
+  progress: number;
 }
 
 export const EMPTY_CREATE_TASK_FORM: CreateTaskFormValues = {
@@ -25,4 +29,6 @@ export const EMPTY_CREATE_TASK_FORM: CreateTaskFormValues = {
   statusId: "",
   priorityId: "",
   assignedTo: "",
+  deadline: "",
+  progress: 0,
 };

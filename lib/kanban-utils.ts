@@ -12,6 +12,23 @@ export const TASK_PRIORITY_ORDER = ["Urgent", "High", "Average", "Low"] as const
 
 export const DEFAULT_TASK_PRIORITY_NAME = "Average";
 
+export const TODO_STATUS_NAME = "ToDo";
+
+export function isTodoStatusId(
+  statusId: string,
+  statuses: { id: string; name: string }[],
+): boolean {
+  return statuses.find((s) => s.id === statusId)?.name === TODO_STATUS_NAME;
+}
+
+export function progressForStatus(
+  statusId: string,
+  progress: number,
+  statuses: { id: string; name: string }[],
+): number {
+  return isTodoStatusId(statusId, statuses) ? 0 : progress;
+}
+
 export function getStatusDotColor(statusName: string): string {
   switch (statusName) {
     case "ToDo":
@@ -95,6 +112,8 @@ export function toBoardTask(params: {
   priorityId?: string;
   assignedTo?: string;
   tags?: string[];
+  deadline?: string;
+  progress?: number;
 }): BoardTask {
   const assigneeLabel =
     params.assigneeName?.trim() || params.createdByName?.trim() || "?";
@@ -113,6 +132,8 @@ export function toBoardTask(params: {
     assignedTo: params.assignedTo,
     createdByName: params.createdByName,
     tags: params.tags?.length ? params.tags : undefined,
+    deadline: params.deadline || undefined,
+    progress: params.progress ?? 0,
   };
 }
 

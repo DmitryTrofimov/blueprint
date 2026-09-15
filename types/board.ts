@@ -27,6 +27,8 @@ export interface BoardTask {
   assignedTo?: string;
   createdByName?: string;
   tags?: string[];
+  /** ISO date YYYY-MM-DD */
+  deadline?: string;
 }
 
 export interface BoardColumn {

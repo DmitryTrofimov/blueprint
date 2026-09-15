@@ -9,9 +9,9 @@ import type {
 } from "@/types/task-form";
 import { EMPTY_CREATE_TASK_FORM } from "@/types/task-form";
 import { KanbanCard } from "./kanban-card";
-import { KanbanColumnDrop } from "./kanban-column-drop";
+import { KanbanColumnDrop, KanbanColumnStatic } from "./kanban-column-drop";
 import { TaskTagsField } from "./task-tags-field";
-import { createTask, updateTask, updateTaskStatus } from "@/lib/supabase/tasks";
+import { createTask, deleteTask, updateTask, updateTaskStatus } from "@/lib/supabase/tasks";
 import {
   DndContext,
   DragOverlay,
@@ -25,17 +25,26 @@ import {
 import {
   TASK_DESCRIPTION_MAX_LENGTH,
   TASK_TITLE_MAX_LENGTH,
+  formatTaskDeadlineDisplay,
+  getTodayDateInputValue,
   normalizeTaskTags,
   validateTaskAssignedTo,
+  validateTaskDeadline,
   validateTaskDescription,
   validateTaskPriorityId,
   validateTaskStatusId,
+  validateTaskProgress,
   validateTaskTags,
   validateTaskTitle,
 } from "@/lib/task-form-validation";
-import { DEFAULT_TASK_PRIORITY_NAME } from "@/lib/kanban-utils";
+import {
+  DEFAULT_TASK_PRIORITY_NAME,
+  TODO_STATUS_NAME,
+  isTodoStatusId,
+  progressForStatus,
+} from "@/lib/kanban-utils";
 import { cn } from "@/lib/utils";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 const BOARD_PANEL_MAX_HEIGHT = "calc(100vh - 12rem)";
 const COLUMN_MAX_HEIGHT = "calc(100vh - 12rem - 2.5rem)";
@@ -103,12 +112,54 @@ function moveTaskToColumn(
 
   if (!movedTask) return columns;
 
-  const updatedTask: BoardTask = { ...movedTask, statusId: toStatusId };
+  const toLabel = columns.find((column) => column.id === toStatusId)?.label;
+  const updatedTask: BoardTask = {
+    ...movedTask,
+    statusId: toStatusId,
+    progress: toLabel === TODO_STATUS_NAME ? 0 : (movedTask.progress ?? 0),
+  };
   return withoutTask.map((column) =>
     column.id === toStatusId
       ? { ...column, tasks: [...column.tasks, updatedTask] }
       : column,
   );
+}
+
+function removeTaskFromColumns(columns: BoardColumn[], taskId: string): BoardColumn[] {
+  return columns.map((column) => ({
+    ...column,
+    tasks: column.tasks.filter((task) => task.id !== taskId),
+  }));
+}
+
+interface TaskTableRow {
+  task: BoardTask;
+  statusLabel: string;
+  assigneeLabel: string;
+}
+
+function buildTaskTableRows(
+  columns: BoardColumn[],
+  assigneeOptions: TaskAssigneeOption[],
+): TaskTableRow[] {
+  const rows: TaskTableRow[] = [];
+
+  for (const column of columns) {
+    for (const task of column.tasks) {
+      const assigneeLabel =
+        assigneeOptions.find((option) => option.userId === task.assignedTo)?.username ??
+        task.createdByName ??
+        "—";
+
+      rows.push({
+        task,
+        statusLabel: column.label,
+        assigneeLabel,
+      });
+    }
+  }
+
+  return rows;
 }
 
 export function BoardKanbanView({
@@ -144,6 +195,7 @@ export function BoardKanbanView({
     {},
   );
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isDndReady, setIsDndReady] = useState(false);
 
   const closeTaskModal = useCallback(() => {
     setTaskModalMode(null);
@@ -156,6 +208,8 @@ export function BoardKanbanView({
   const defaultPriorityId =
     priorityOptions.find((option) => option.name === DEFAULT_TASK_PRIORITY_NAME)?.id ?? "";
 
+  const minDeadlineDate = getTodayDateInputValue();
+
   const openCreateModal = useCallback(
     (statusId: string) => {
       setEditingTaskId(null);
@@ -166,6 +220,8 @@ export function BoardKanbanView({
         statusId,
         priorityId: defaultPriorityId,
         assignedTo: "",
+        deadline: getTodayDateInputValue(),
+        progress: 0,
       });
       setFieldErrors({});
       setSubmitError(null);
@@ -184,6 +240,8 @@ export function BoardKanbanView({
       statusId: task.statusId,
       priorityId: task.priorityId,
       assignedTo: task.assignedTo,
+      deadline: task.deadline ?? "",
+      progress: task.progress ?? 0,
     });
     setFieldErrors({});
     setSubmitError(null);
@@ -228,7 +286,14 @@ export function BoardKanbanView({
     setActionError(null);
     setIsMovingTask(true);
 
-    const { error } = await updateTaskStatus({ id: taskId, statusId: toColumnId });
+    const toColumn = columns.find((column) => column.id === toColumnId);
+    const resetProgress = toColumn?.label === TODO_STATUS_NAME;
+
+    const { error } = await updateTaskStatus({
+      id: taskId,
+      statusId: toColumnId,
+      resetProgress,
+    });
 
     setIsMovingTask(false);
 
@@ -261,6 +326,10 @@ export function BoardKanbanView({
     };
   }, [isTaskModalOpen, closeTaskModal]);
 
+  useEffect(() => {
+    setIsDndReady(true);
+  }, []);
+
   const validateForm = (values: CreateTaskFormValues) => {
     const errors: Partial<Record<keyof CreateTaskFormValues, string>> = {};
     const titleError = validateTaskTitle(values.title);
@@ -269,6 +338,10 @@ export function BoardKanbanView({
     const assignedToError = validateTaskAssignedTo(values.assignedTo);
     const priorityError = validateTaskPriorityId(values.priorityId);
     const tagsError = validateTaskTags(values.tags);
+    const deadlineError = validateTaskDeadline(values.deadline);
+    const progressError = isTodoStatusId(values.statusId, statusOptions)
+      ? undefined
+      : validateTaskProgress(values.progress);
 
     if (titleError) errors.title = titleError;
     if (descriptionError) errors.description = descriptionError;
@@ -276,6 +349,8 @@ export function BoardKanbanView({
     if (assignedToError) errors.assignedTo = assignedToError;
     if (priorityError) errors.priorityId = priorityError;
     if (tagsError) errors.tags = tagsError;
+    if (deadlineError) errors.deadline = deadlineError;
+    if (progressError) errors.progress = progressError;
 
     return errors;
   };
@@ -290,6 +365,12 @@ export function BoardKanbanView({
     const assigneeName =
       assigneeOptions.find((option) => option.userId === assignedTo)?.username ?? null;
     const tags = normalizeTaskTags(taskForm.tags);
+    const deadline = taskForm.deadline.trim() || null;
+    const progress = progressForStatus(
+      taskForm.statusId,
+      taskForm.progress,
+      statusOptions,
+    );
 
     setIsSaving(true);
     setActionError(null);
@@ -305,6 +386,8 @@ export function BoardKanbanView({
         assignedTo,
         assigneeName,
         tags,
+        deadline,
+        progress,
       });
 
       setIsSaving(false);
@@ -331,6 +414,8 @@ export function BoardKanbanView({
       createdByName,
       assigneeName,
       tags,
+      deadline,
+      progress,
     });
 
     setIsSaving(false);
@@ -344,6 +429,37 @@ export function BoardKanbanView({
     closeTaskModal();
   };
 
+  const taskTableRows = useMemo(
+    () => buildTaskTableRows(columns, assigneeOptions),
+    [columns, assigneeOptions],
+  );
+
+  const handleDeleteFromModal = async () => {
+    if (!editingTaskId) return;
+
+    const title = taskForm.title.trim() || "this task";
+    const confirmed = window.confirm(`Delete task "${title}"?`);
+    if (!confirmed) return;
+
+    const taskId = editingTaskId;
+
+    setIsSaving(true);
+    setActionError(null);
+    setSubmitError(null);
+
+    const { error } = await deleteTask(taskId);
+
+    setIsSaving(false);
+
+    if (error) {
+      setSubmitError(error);
+      return;
+    }
+
+    setColumns((prev) => removeTaskFromColumns(prev, taskId));
+    closeTaskModal();
+  };
+
   const titleTrimmed = taskForm.title.trim();
   const canSubmit =
     titleTrimmed.length > 0 &&
@@ -352,7 +468,64 @@ export function BoardKanbanView({
     Boolean(taskForm.statusId) &&
     Boolean(taskForm.assignedTo.trim()) &&
     Boolean(taskForm.priorityId) &&
-    !validateTaskTags(taskForm.tags);
+    !validateTaskTags(taskForm.tags) &&
+    !validateTaskDeadline(taskForm.deadline.trim()) &&
+    (isTodoStatusId(taskForm.statusId, statusOptions) ||
+      !validateTaskProgress(taskForm.progress));
+
+  const isTodoFormStatus = isTodoStatusId(taskForm.statusId, statusOptions);
+
+  const kanbanPanel = (
+    <div
+      className={cn(
+        "w-full max-h-[var(--board-panel-max-h)] overflow-hidden rounded-2xl border border-card-border bg-surface-window glow-purple",
+        className,
+      )}
+      style={
+        {
+          "--board-panel-max-h": BOARD_PANEL_MAX_HEIGHT,
+        } as CSSProperties
+      }
+    >
+      <div className="flex items-start gap-5 overflow-x-auto p-5">
+        {columns.map((col) => (
+          <div
+            key={col.id}
+            className="flex w-[14.4rem] shrink-0 flex-col min-w-[14.4rem]"
+            style={{ maxHeight: COLUMN_MAX_HEIGHT }}
+          >
+            <div className="mb-3 flex shrink-0 items-center gap-2">
+              <span className={cn("h-2 w-2 rounded-full", col.dotColor)} />
+              <span className="text-sm font-medium text-foreground">{col.label}</span>
+              <span className="rounded-md bg-white/5 px-1.5 py-0.5 text-xs text-muted">
+                {col.tasks.length}
+              </span>
+            </div>
+
+            {isDndReady ? (
+              <KanbanColumnDrop
+                column={col}
+                onEditTask={openEditModal}
+                dragDisabled={dragDisabled}
+              />
+            ) : (
+              <KanbanColumnStatic column={col} onEditTask={openEditModal} />
+            )}
+
+            <button
+              type="button"
+              onClick={() => openCreateModal(col.id)}
+              disabled={isSaving || isMovingTask}
+              className="mt-2.5 flex w-full shrink-0 items-center justify-center gap-1.5 rounded-xl border border-dashed border-white/10 py-2.5 text-xs text-muted transition-colors hover:border-white/20 hover:text-foreground disabled:opacity-50"
+            >
+              <span className="text-base leading-none">+</span>
+              Add task
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 
   return (
     <>
@@ -362,67 +535,116 @@ export function BoardKanbanView({
         </div>
       )}
 
-      <DndContext
-        sensors={dragSensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-        onDragCancel={handleDragCancel}
-      >
-        <div
-          className={cn(
-            "w-full max-h-[var(--board-panel-max-h)] overflow-hidden rounded-2xl border border-card-border bg-surface-window glow-purple",
-            className,
-          )}
-          style={
-            {
-              "--board-panel-max-h": BOARD_PANEL_MAX_HEIGHT,
-            } as CSSProperties
-          }
+      <div className="flex flex-col gap-6">
+      {isDndReady ? (
+        <DndContext
+          sensors={dragSensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
         >
-          <div className="flex items-start gap-5 overflow-x-auto p-5">
-            {columns.map((col) => (
-              <div
-                key={col.id}
-                className="flex w-[14.4rem] shrink-0 flex-col min-w-[14.4rem]"
-                style={{ maxHeight: COLUMN_MAX_HEIGHT }}
-              >
-                <div className="mb-3 flex shrink-0 items-center gap-2">
-                  <span className={cn("h-2 w-2 rounded-full", col.dotColor)} />
-                  <span className="text-sm font-medium text-foreground">{col.label}</span>
-                  <span className="rounded-md bg-white/5 px-1.5 py-0.5 text-xs text-muted">
-                    {col.tasks.length}
-                  </span>
-                </div>
-
-                <KanbanColumnDrop
-                  column={col}
-                  onEditTask={openEditModal}
-                  dragDisabled={dragDisabled}
+          {kanbanPanel}
+          <DragOverlay dropAnimation={null}>
+            {activeDragTask && activeDragColumnId ? (
+              <div className="w-[14.4rem] cursor-grabbing shadow-xl">
+                <KanbanCard
+                  task={activeDragTask}
+                  columnId={activeDragColumnId}
+                  hideProgress={
+                    columns.find((column) => column.id === activeDragColumnId)?.label ===
+                    TODO_STATUS_NAME
+                  }
                 />
-
-                <button
-                  type="button"
-                  onClick={() => openCreateModal(col.id)}
-                  disabled={isSaving || isMovingTask}
-                  className="mt-2.5 flex w-full shrink-0 items-center justify-center gap-1.5 rounded-xl border border-dashed border-white/10 py-2.5 text-xs text-muted transition-colors hover:border-white/20 hover:text-foreground disabled:opacity-50"
-                >
-                  <span className="text-base leading-none">+</span>
-                  Add task
-                </button>
               </div>
-            ))}
-          </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      ) : (
+        kanbanPanel
+      )}
+
+      <section className="overflow-hidden rounded-2xl border border-card-border bg-surface-window">
+        <div className="border-b border-card-border px-6 py-4">
+          <h2 className="text-base font-semibold">Tasks on this board</h2>
+          <p className="mt-1 text-sm text-muted">
+            {taskTableRows.length === 0
+              ? "No tasks yet. Add one from the kanban above"
+              : `${taskTableRows.length} task${taskTableRows.length === 1 ? "" : "s"}`}
+          </p>
         </div>
 
-        <DragOverlay dropAnimation={null}>
-          {activeDragTask && activeDragColumnId ? (
-            <div className="w-[14.4rem] cursor-grabbing shadow-xl">
-              <KanbanCard task={activeDragTask} columnId={activeDragColumnId} />
-            </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+        {taskTableRows.length === 0 ? (
+          <div className="px-6 py-12 text-center text-sm text-muted">
+            Tasks will appear here once created
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[800px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-card-border bg-white/[0.02] text-xs uppercase tracking-wide text-muted">
+                  <th className="px-6 py-3 font-medium">Title</th>
+                  <th className="px-6 py-3 font-medium">Status</th>
+                  <th className="px-6 py-3 font-medium">Priority</th>
+                  <th className="px-6 py-3 font-medium">Progress</th>
+                  <th className="px-6 py-3 font-medium">Deadline</th>
+                  <th className="px-6 py-3 font-medium">Assigned to</th>
+                  <th className="px-6 py-3 font-medium">Tags</th>
+                </tr>
+              </thead>
+              <tbody>
+                {taskTableRows.map(({ task, statusLabel, assigneeLabel }) => (
+                  <tr
+                    key={task.id}
+                    className="border-b border-card-border/70 last:border-b-0"
+                  >
+                    <td className="px-6 py-4 align-top">
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(task)}
+                        disabled={isSaving || isMovingTask}
+                        className="text-left font-medium text-accent-purple-light transition-colors hover:text-foreground disabled:opacity-50"
+                      >
+                        {task.title}
+                      </button>
+                    </td>
+                    <td className="px-6 py-4 align-top text-muted">{statusLabel}</td>
+                    <td className="px-6 py-4 align-top text-muted">
+                      {task.priorityName ?? "—"}
+                    </td>
+                    <td className="px-6 py-4 align-top tabular-nums text-muted">
+                      {statusLabel === TODO_STATUS_NAME ? "0%" : `${task.progress ?? 0}%`}
+                    </td>
+                    <td className="px-6 py-4 align-top whitespace-nowrap text-muted">
+                      {task.deadline
+                        ? formatTaskDeadlineDisplay(task.deadline)
+                        : "—"}
+                    </td>
+                    <td className="px-6 py-4 align-top text-muted">{assigneeLabel}</td>
+                    <td className="px-6 py-4 align-top">
+                      {task.tags && task.tags.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {task.tags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="rounded-md bg-accent-purple/15 px-1.5 py-0.5 text-[10px] font-medium uppercase text-accent-purple-light"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+      </div>
 
       {isTaskModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -506,9 +728,21 @@ export function BoardKanbanView({
                   <select
                     id="task-status"
                     value={taskForm.statusId}
-                    onChange={(e) =>
-                      setTaskForm((prev) => ({ ...prev, statusId: e.target.value }))
-                    }
+                    onChange={(e) => {
+                      const statusId = e.target.value;
+                      setTaskForm((prev) => ({
+                        ...prev,
+                        statusId,
+                        progress: isTodoStatusId(statusId, statusOptions) ? 0 : prev.progress,
+                      }));
+                      if (fieldErrors.statusId) {
+                        setFieldErrors((prev) => {
+                          const next = { ...prev };
+                          delete next.statusId;
+                          return next;
+                        });
+                      }
+                    }}
                     disabled={isSaving}
                     className={cn(
                       "auth-input auth-select w-full",
@@ -578,6 +812,68 @@ export function BoardKanbanView({
                 </p>
               </Field>
 
+              {!isTodoFormStatus ? (
+                <Field label="Progress" htmlFor="task-progress" error={fieldErrors.progress}>
+                  <div className="flex items-center gap-3">
+                    <input
+                      id="task-progress"
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={5}
+                      value={taskForm.progress}
+                      onChange={(e) => {
+                        setTaskForm((prev) => ({
+                          ...prev,
+                          progress: Number(e.target.value),
+                        }));
+                        if (fieldErrors.progress) {
+                          setFieldErrors((prev) => {
+                            const next = { ...prev };
+                            delete next.progress;
+                            return next;
+                          });
+                        }
+                      }}
+                      disabled={isSaving}
+                      className={cn(
+                        "auth-range-input flex-1",
+                        fieldErrors.progress && "opacity-80",
+                      )}
+                    />
+                    <span className="w-10 shrink-0 text-right text-sm font-medium tabular-nums text-accent-purple-light">
+                      {taskForm.progress}%
+                    </span>
+                  </div>
+                </Field>
+              ) : (
+                <p className="text-xs text-muted">Progress is 0% for ToDo tasks.</p>
+              )}
+
+              <Field label="Deadline" htmlFor="task-deadline" error={fieldErrors.deadline}>
+                <input
+                  id="task-deadline"
+                  type="date"
+                  value={taskForm.deadline}
+                  min={minDeadlineDate}
+                  onChange={(e) => {
+                    setTaskForm((prev) => ({ ...prev, deadline: e.target.value }));
+                    if (fieldErrors.deadline) {
+                      setFieldErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.deadline;
+                        return next;
+                      });
+                    }
+                  }}
+                  disabled={isSaving}
+                  className={cn(
+                    "auth-input auth-date-input w-full",
+                    fieldErrors.deadline && "auth-input-error",
+                  )}
+                />
+              </Field>
+
               <TaskTagsField
                 id="task-tags"
                 tags={taskForm.tags}
@@ -632,22 +928,36 @@ export function BoardKanbanView({
                 </select>
               </Field>
 
-              <div className="flex justify-end gap-3 pt-1">
-                <button
-                  type="submit"
-                  disabled={isSaving || !canSubmit}
-                  className="min-w-[5.75rem] rounded-xl bg-gradient-to-r from-accent-purple to-[#6366f1] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-accent-purple/20 transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isSaving ? "Saving..." : "Save"}
-                </button>
-                <button
-                  type="button"
-                  onClick={closeTaskModal}
-                  disabled={isSaving}
-                  className="min-w-[5.75rem] rounded-xl border border-card-border px-5 py-2.5 text-sm font-medium text-muted transition-colors hover:text-foreground disabled:opacity-50"
-                >
-                  Cancel
-                </button>
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                {taskModalMode === "edit" ? (
+                  <button
+                    type="button"
+                    onClick={handleDeleteFromModal}
+                    disabled={isSaving}
+                    className="rounded-xl border border-red-500/30 px-5 py-2.5 text-sm font-medium text-red-300 transition-colors hover:bg-red-500/10 disabled:opacity-50"
+                  >
+                    Delete
+                  </button>
+                ) : (
+                  <span aria-hidden="true" />
+                )}
+                <div className="flex flex-wrap justify-end gap-3">
+                  <button
+                    type="submit"
+                    disabled={isSaving || !canSubmit}
+                    className="min-w-[5.75rem] rounded-xl bg-gradient-to-r from-accent-purple to-[#6366f1] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-accent-purple/20 transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isSaving ? "Saving..." : "Save"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeTaskModal}
+                    disabled={isSaving}
+                    className="min-w-[5.75rem] rounded-xl border border-card-border px-5 py-2.5 text-sm font-medium text-muted transition-colors hover:text-foreground disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             </form>
           </div>

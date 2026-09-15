@@ -12,8 +12,13 @@ create table if not exists public.tasks (
   created_by uuid references auth.users (id) on delete set null,
   created_by_name text not null default '',
   assigned_to uuid references auth.users (id) on delete set null,
+  deadline date,
+  progress integer not null default 0,
   constraint tasks_title_length check (char_length(title) <= 80),
-  constraint tasks_description_length check (char_length(description) <= 220)
+  constraint tasks_description_length check (char_length(description) <= 220),
+  constraint tasks_deadline_not_past check (deadline is null or deadline >= current_date),
+  constraint tasks_progress_range check (progress >= 0 and progress <= 100),
+  constraint tasks_progress_step check (progress % 5 = 0)
 );
 
 create or replace function public.tasks_tags_valid(tags text[])

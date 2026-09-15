@@ -17,11 +17,13 @@ interface TaskRow {
   priority_id: string | null;
   assigned_to: string | null;
   created_by_name: string;
+  deadline: string | null;
+  progress: number;
   task_priority: { name: string } | { name: string }[] | null;
 }
 
 const TASK_SELECT =
-  "id, title, description, tags, status_id, priority_id, assigned_to, created_by_name, task_priority(name)";
+  "id, title, description, tags, status_id, priority_id, assigned_to, created_by_name, deadline, progress, task_priority(name)";
 
 function getPriorityName(
   priorityJoin: TaskRow["task_priority"],
@@ -50,6 +52,8 @@ function mapRowToResult(
       priorityName,
       columnKey: row.status_id,
       tags: normalizeTaskTags(row.tags ?? []),
+      deadline: row.deadline ?? undefined,
+      progress: row.progress,
     }),
   };
 }
@@ -64,6 +68,8 @@ export async function createTask(params: {
   createdByName: string;
   assigneeName?: string | null;
   tags: string[];
+  deadline: string | null;
+  progress: number;
 }): Promise<{ data: TaskMutationResult | null; error: string | null }> {
   const supabase = createClient();
   const {
@@ -85,6 +91,8 @@ export async function createTask(params: {
       status_id: params.statusId,
       priority_id: params.priorityId,
       assigned_to: params.assignedTo,
+      deadline: params.deadline,
+      progress: params.progress,
       created_by: user.id,
       created_by_name: params.createdByName,
     })
@@ -110,6 +118,8 @@ export async function updateTask(params: {
   assignedTo: string;
   assigneeName?: string | null;
   tags: string[];
+  deadline: string | null;
+  progress: number;
 }): Promise<{ data: TaskMutationResult | null; error: string | null }> {
   const supabase = createClient();
   const {
@@ -130,6 +140,8 @@ export async function updateTask(params: {
       status_id: params.statusId,
       priority_id: params.priorityId,
       assigned_to: params.assignedTo,
+      deadline: params.deadline,
+      progress: params.progress,
     })
     .eq("id", params.id)
     .select(TASK_SELECT)
@@ -148,6 +160,7 @@ export async function updateTask(params: {
 export async function updateTaskStatus(params: {
   id: string;
   statusId: string;
+  resetProgress?: boolean;
 }): Promise<{ error: string | null }> {
   const supabase = createClient();
   const {
@@ -159,10 +172,30 @@ export async function updateTaskStatus(params: {
     return { error: "You must be signed in to update a task." };
   }
 
-  const { error } = await supabase
-    .from("tasks")
-    .update({ status_id: params.statusId })
-    .eq("id", params.id);
+  const payload: { status_id: string; progress?: number } = {
+    status_id: params.statusId,
+  };
+  if (params.resetProgress) {
+    payload.progress = 0;
+  }
+
+  const { error } = await supabase.from("tasks").update(payload).eq("id", params.id);
+
+  return { error: error?.message ?? null };
+}
+
+export async function deleteTask(id: string): Promise<{ error: string | null }> {
+  const supabase = createClient();
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    return { error: "You must be signed in to delete a task." };
+  }
+
+  const { error } = await supabase.from("tasks").delete().eq("id", id);
 
   return { error: error?.message ?? null };
 }
