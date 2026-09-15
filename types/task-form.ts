@@ -1,6 +1,7 @@
 export interface TaskLookupOption {
   id: string;
   name: string;
+  isTodo?: boolean;
 }
 
 export interface TaskAssigneeOption {

@@ -11,6 +11,13 @@ import { EMPTY_CREATE_TASK_FORM } from "@/types/task-form";
 import { KanbanCard } from "./kanban-card";
 import { KanbanColumnDrop, KanbanColumnStatic } from "./kanban-column-drop";
 import { TaskTagsField } from "./task-tags-field";
+import {
+  createBoardStatus,
+  deleteBoardStatus,
+  renameBoardStatus,
+  reorderBoardStatuses,
+  validateBoardStatusName,
+} from "@/lib/supabase/board-statuses";
 import { createTask, deleteTask, updateTask, updateTaskStatus } from "@/lib/supabase/tasks";
 import {
   DndContext,
@@ -39,7 +46,7 @@ import {
 } from "@/lib/task-form-validation";
 import {
   DEFAULT_TASK_PRIORITY_NAME,
-  TODO_STATUS_NAME,
+  getStatusDotColor,
   isTodoStatusId,
   progressForStatus,
 } from "@/lib/kanban-utils";
@@ -53,7 +60,6 @@ interface BoardKanbanViewProps {
   boardId: string;
   createdByName: string;
   initialColumns: BoardColumn[];
-  statusOptions: TaskLookupOption[];
   priorityOptions: TaskLookupOption[];
   assigneeOptions: TaskAssigneeOption[];
   initialError?: string | null;
@@ -112,17 +118,39 @@ function moveTaskToColumn(
 
   if (!movedTask) return columns;
 
-  const toLabel = columns.find((column) => column.id === toStatusId)?.label;
+  const toColumn = columns.find((column) => column.id === toStatusId);
   const updatedTask: BoardTask = {
     ...movedTask,
     statusId: toStatusId,
-    progress: toLabel === TODO_STATUS_NAME ? 0 : (movedTask.progress ?? 0),
+    progress: toColumn?.isTodo ? 0 : (movedTask.progress ?? 0),
   };
   return withoutTask.map((column) =>
     column.id === toStatusId
       ? { ...column, tasks: [...column.tasks, updatedTask] }
       : column,
   );
+}
+
+function boardStatusOptionsFromColumns(columns: BoardColumn[]): TaskLookupOption[] {
+  return columns.map((column) => ({
+    id: column.id,
+    name: column.label,
+    isTodo: column.isTodo,
+  }));
+}
+
+function boardColumnFromStatus(row: {
+  id: string;
+  name: string;
+  is_todo: boolean;
+}): BoardColumn {
+  return {
+    id: row.id,
+    label: row.name,
+    dotColor: getStatusDotColor(row.name),
+    isTodo: row.is_todo,
+    tasks: [],
+  };
 }
 
 function removeTaskFromColumns(columns: BoardColumn[], taskId: string): BoardColumn[] {
@@ -132,10 +160,26 @@ function removeTaskFromColumns(columns: BoardColumn[], taskId: string): BoardCol
   }));
 }
 
+function filterColumnsByAssignee(
+  columns: BoardColumn[],
+  assigneeUserId: string,
+): BoardColumn[] {
+  if (!assigneeUserId) return columns;
+  return columns.map((column) => ({
+    ...column,
+    tasks: column.tasks.filter((task) => task.assignedTo === assigneeUserId),
+  }));
+}
+
+function countTasksInColumns(columns: BoardColumn[]): number {
+  return columns.reduce((sum, column) => sum + column.tasks.length, 0);
+}
+
 interface TaskTableRow {
   task: BoardTask;
   statusLabel: string;
   assigneeLabel: string;
+  isTodoColumn: boolean;
 }
 
 function buildTaskTableRows(
@@ -155,6 +199,7 @@ function buildTaskTableRows(
         task,
         statusLabel: column.label,
         assigneeLabel,
+        isTodoColumn: column.isTodo,
       });
     }
   }
@@ -166,7 +211,6 @@ export function BoardKanbanView({
   boardId,
   createdByName,
   initialColumns,
-  statusOptions,
   priorityOptions,
   assigneeOptions,
   initialError = null,
@@ -177,7 +221,17 @@ export function BoardKanbanView({
   const dialogRef = useRef<HTMLDivElement>(null);
 
   const [columns, setColumns] = useState<BoardColumn[]>(initialColumns);
+  const [statusOptions, setStatusOptions] = useState<TaskLookupOption[]>(() =>
+    boardStatusOptionsFromColumns(initialColumns),
+  );
   const [actionError, setActionError] = useState<string | null>(initialError);
+  const [isManagingColumns, setIsManagingColumns] = useState(false);
+  const [columnModalMode, setColumnModalMode] = useState<"add" | "rename" | null>(null);
+  const [columnModalTargetId, setColumnModalTargetId] = useState<string | null>(null);
+  const [columnNameInput, setColumnNameInput] = useState("");
+  const [columnModalError, setColumnModalError] = useState<string | null>(null);
+  const [openColumnMenuId, setOpenColumnMenuId] = useState<string | null>(null);
+  const [assigneeFilterUserId, setAssigneeFilterUserId] = useState("");
   const [activeDragTask, setActiveDragTask] = useState<BoardTask | null>(null);
   const [activeDragColumnId, setActiveDragColumnId] = useState<string | null>(null);
   const [isMovingTask, setIsMovingTask] = useState(false);
@@ -249,7 +303,36 @@ export function BoardKanbanView({
   }, []);
 
   const isTaskModalOpen = taskModalMode !== null;
-  const dragDisabled = isSaving || isMovingTask || isTaskModalOpen;
+  const isColumnModalOpen = columnModalMode !== null;
+  const dragDisabled =
+    isSaving || isMovingTask || isTaskModalOpen || isManagingColumns || isColumnModalOpen;
+
+  const syncStatusOptions = useCallback((nextColumns: BoardColumn[]) => {
+    setStatusOptions(boardStatusOptionsFromColumns(nextColumns));
+  }, []);
+
+  const closeColumnModal = useCallback(() => {
+    setColumnModalMode(null);
+    setColumnModalTargetId(null);
+    setColumnNameInput("");
+    setColumnModalError(null);
+  }, []);
+
+  const openAddColumnModal = () => {
+    setColumnModalMode("add");
+    setColumnModalTargetId(null);
+    setColumnNameInput("");
+    setColumnModalError(null);
+    setOpenColumnMenuId(null);
+  };
+
+  const openRenameColumnModal = (columnId: string, currentName: string) => {
+    setColumnModalMode("rename");
+    setColumnModalTargetId(columnId);
+    setColumnNameInput(currentName);
+    setColumnModalError(null);
+    setOpenColumnMenuId(null);
+  };
 
   const handleDragStart = (event: DragStartEvent) => {
     const data = event.active.data.current;
@@ -287,7 +370,7 @@ export function BoardKanbanView({
     setIsMovingTask(true);
 
     const toColumn = columns.find((column) => column.id === toColumnId);
-    const resetProgress = toColumn?.label === TODO_STATUS_NAME;
+    const resetProgress = Boolean(toColumn?.isTodo);
 
     const { error } = await updateTaskStatus({
       id: taskId,
@@ -429,10 +512,154 @@ export function BoardKanbanView({
     closeTaskModal();
   };
 
-  const taskTableRows = useMemo(
-    () => buildTaskTableRows(columns, assigneeOptions),
-    [columns, assigneeOptions],
+  const filteredColumns = useMemo(
+    () => filterColumnsByAssignee(columns, assigneeFilterUserId),
+    [columns, assigneeFilterUserId],
   );
+
+  const totalTaskCount = useMemo(() => countTasksInColumns(columns), [columns]);
+  const filteredTaskCount = useMemo(
+    () => countTasksInColumns(filteredColumns),
+    [filteredColumns],
+  );
+
+  const taskTableRows = useMemo(
+    () => buildTaskTableRows(filteredColumns, assigneeOptions),
+    [filteredColumns, assigneeOptions],
+  );
+
+  const isAssigneeFilterActive = Boolean(assigneeFilterUserId);
+  const assigneeFilterLabel =
+    assigneeOptions.find((option) => option.userId === assigneeFilterUserId)?.username ??
+    "selected user";
+
+  const handleColumnModalSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const nameError = validateBoardStatusName(columnNameInput);
+    if (nameError) {
+      setColumnModalError(nameError);
+      return;
+    }
+
+    setIsManagingColumns(true);
+    setActionError(null);
+    setColumnModalError(null);
+
+    if (columnModalMode === "add") {
+      const { data, error } = await createBoardStatus({
+        boardId,
+        name: columnNameInput,
+      });
+      setIsManagingColumns(false);
+
+      if (error || !data) {
+        setColumnModalError(error ?? "Failed to add column.");
+        return;
+      }
+
+      setColumns((prev) => {
+        const next = [...prev, boardColumnFromStatus(data)];
+        syncStatusOptions(next);
+        return next;
+      });
+      closeColumnModal();
+      return;
+    }
+
+    if (columnModalMode === "rename" && columnModalTargetId) {
+      const { data, error } = await renameBoardStatus({
+        id: columnModalTargetId,
+        name: columnNameInput,
+      });
+      setIsManagingColumns(false);
+
+      if (error || !data) {
+        setColumnModalError(error ?? "Failed to rename column.");
+        return;
+      }
+
+      setColumns((prev) => {
+        const next = prev.map((column) =>
+          column.id === data.id
+            ? {
+                ...column,
+                label: data.name,
+                dotColor: getStatusDotColor(data.name),
+                isTodo: data.is_todo,
+              }
+            : column,
+        );
+        syncStatusOptions(next);
+        return next;
+      });
+      closeColumnModal();
+    }
+  };
+
+  const handleDeleteColumn = async (column: BoardColumn) => {
+    setOpenColumnMenuId(null);
+    if (column.isTodo) return;
+
+    if (column.tasks.length > 0) {
+      setActionError("Remove all tasks from this column before deleting it.");
+      return;
+    }
+
+    const confirmed = window.confirm(`Delete column "${column.label}"?`);
+    if (!confirmed) return;
+
+    setIsManagingColumns(true);
+    setActionError(null);
+
+    const { error } = await deleteBoardStatus(column.id, column.tasks.length);
+    setIsManagingColumns(false);
+
+    if (error) {
+      setActionError(error);
+      return;
+    }
+
+    setColumns((prev) => {
+      const next = prev.filter((item) => item.id !== column.id);
+      syncStatusOptions(next);
+      return next;
+    });
+  };
+
+  const handleMoveColumn = async (columnId: string, direction: "up" | "down") => {
+    setOpenColumnMenuId(null);
+    const index = columns.findIndex((column) => column.id === columnId);
+    if (index < 0) return;
+
+    const column = columns[index];
+    if (column.isTodo) return;
+
+    const swapIndex = direction === "up" ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= columns.length) return;
+    if (columns[swapIndex]?.isTodo) return;
+
+    const reordered = [...columns];
+    [reordered[index], reordered[swapIndex]] = [reordered[swapIndex], reordered[index]];
+
+    const snapshot = columns;
+    setColumns(reordered);
+    syncStatusOptions(reordered);
+    setIsManagingColumns(true);
+    setActionError(null);
+
+    const { error } = await reorderBoardStatuses({
+      boardId,
+      orderedIds: reordered.map((item) => item.id),
+    });
+
+    setIsManagingColumns(false);
+
+    if (error) {
+      setColumns(snapshot);
+      syncStatusOptions(snapshot);
+      setActionError(error);
+    }
+  };
 
   const handleDeleteFromModal = async () => {
     if (!editingTaskId) return;
@@ -487,19 +714,116 @@ export function BoardKanbanView({
         } as CSSProperties
       }
     >
+      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-card-border px-5 py-3">
+        <div className="min-w-[12rem] flex-1 sm:max-w-xs">
+          <label htmlFor="board-assignee-filter" className="mb-1.5 block text-xs font-medium text-muted">
+            Filter by Assignee
+          </label>
+          <select
+            id="board-assignee-filter"
+            value={assigneeFilterUserId}
+            onChange={(e) => setAssigneeFilterUserId(e.target.value)}
+            className="auth-input auth-select w-full text-sm"
+          >
+            <option value="">All users</option>
+            {assigneeOptions.map((option) => (
+              <option key={option.userId} value={option.userId}>
+                {option.username}
+                {option.roleName ? ` · ${option.roleName}` : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+        <button
+          type="button"
+          onClick={openAddColumnModal}
+          disabled={isManagingColumns || isSaving || isMovingTask}
+          aria-label="Add column"
+          className="rounded-xl bg-gradient-to-r from-accent-purple to-[#6366f1] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-accent-purple/20 transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          +
+        </button>
+      </div>
       <div className="flex items-start gap-5 overflow-x-auto p-5">
-        {columns.map((col) => (
+        {filteredColumns.map((col) => (
           <div
             key={col.id}
             className="flex w-[14.4rem] shrink-0 flex-col min-w-[14.4rem]"
             style={{ maxHeight: COLUMN_MAX_HEIGHT }}
           >
-            <div className="mb-3 flex shrink-0 items-center gap-2">
-              <span className={cn("h-2 w-2 rounded-full", col.dotColor)} />
-              <span className="text-sm font-medium text-foreground">{col.label}</span>
+            <div className="mb-3 flex shrink-0 items-center gap-1.5">
+              <span className={cn("h-2 w-2 shrink-0 rounded-full", col.dotColor)} />
+              <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                {col.label}
+              </span>
               <span className="rounded-md bg-white/5 px-1.5 py-0.5 text-xs text-muted">
                 {col.tasks.length}
               </span>
+              <div className="relative">
+                <button
+                  type="button"
+                  aria-label={`Column actions for ${col.label}`}
+                  aria-expanded={openColumnMenuId === col.id}
+                  disabled={isManagingColumns}
+                  onClick={() =>
+                    setOpenColumnMenuId((prev) => (prev === col.id ? null : col.id))
+                  }
+                  className="rounded-md p-1 text-muted transition-colors hover:bg-white/5 hover:text-foreground disabled:opacity-50"
+                >
+                  <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden>
+                    <path d="M10 6a2 2 0 110-4 2 2 0 010 4zm0 4a2 2 0 110-4 2 2 0 010 4zm0 4a2 2 0 110-4 2 2 0 010 4z" />
+                  </svg>
+                </button>
+                {openColumnMenuId === col.id ? (
+                  <>
+                    <button
+                      type="button"
+                      className="fixed inset-0 z-10 cursor-default"
+                      aria-label="Close column menu"
+                      onClick={() => setOpenColumnMenuId(null)}
+                    />
+                    <div className="absolute right-0 top-full z-20 mt-1 min-w-[10rem] rounded-xl border border-card-border bg-surface-window py-1 shadow-lg">
+                      <button
+                        type="button"
+                        className="block w-full px-3 py-2 text-left text-xs text-foreground hover:bg-white/5"
+                        onClick={() => openRenameColumnModal(col.id, col.label)}
+                      >
+                        Rename
+                      </button>
+                      {!col.isTodo ? (
+                        <>
+                          <button
+                            type="button"
+                            disabled={columns.findIndex((c) => c.id === col.id) <= 1}
+                            className="block w-full px-3 py-2 text-left text-xs text-foreground hover:bg-white/5 disabled:opacity-40"
+                            onClick={() => handleMoveColumn(col.id, "up")}
+                          >
+                            Move left
+                          </button>
+                          <button
+                            type="button"
+                            disabled={
+                              columns.findIndex((c) => c.id === col.id) >= columns.length - 1
+                            }
+                            className="block w-full px-3 py-2 text-left text-xs text-foreground hover:bg-white/5 disabled:opacity-40"
+                            onClick={() => handleMoveColumn(col.id, "down")}
+                          >
+                            Move right
+                          </button>
+                          <button
+                            type="button"
+                            disabled={col.tasks.length > 0}
+                            className="block w-full px-3 py-2 text-left text-xs text-red-400 hover:bg-white/5 disabled:opacity-40"
+                            onClick={() => handleDeleteColumn(col)}
+                          >
+                            Delete
+                          </button>
+                        </>
+                      ) : null}
+                    </div>
+                  </>
+                ) : null}
+              </div>
             </div>
 
             {isDndReady ? (
@@ -552,8 +876,8 @@ export function BoardKanbanView({
                   task={activeDragTask}
                   columnId={activeDragColumnId}
                   hideProgress={
-                    columns.find((column) => column.id === activeDragColumnId)?.label ===
-                    TODO_STATUS_NAME
+                    filteredColumns.find((column) => column.id === activeDragColumnId)?.isTodo ??
+                    false
                   }
                 />
               </div>
@@ -568,15 +892,23 @@ export function BoardKanbanView({
         <div className="border-b border-card-border px-6 py-4">
           <h2 className="text-base font-semibold">Tasks on this board</h2>
           <p className="mt-1 text-sm text-muted">
-            {taskTableRows.length === 0
+            {totalTaskCount === 0
               ? "No tasks yet. Add one from the kanban above"
-              : `${taskTableRows.length} task${taskTableRows.length === 1 ? "" : "s"}`}
+              : isAssigneeFilterActive
+                ? filteredTaskCount === 0
+                  ? `No tasks assigned to ${assigneeFilterLabel}`
+                  : `${filteredTaskCount} of ${totalTaskCount} task${totalTaskCount === 1 ? "" : "s"} for ${assigneeFilterLabel}`
+                : `${totalTaskCount} task${totalTaskCount === 1 ? "" : "s"}`}
           </p>
         </div>
 
         {taskTableRows.length === 0 ? (
           <div className="px-6 py-12 text-center text-sm text-muted">
-            Tasks will appear here once created
+            {totalTaskCount === 0
+              ? "Tasks will appear here once created"
+              : isAssigneeFilterActive
+                ? `No tasks assigned to ${assigneeFilterLabel}. Try another user or show all users.`
+                : "Tasks will appear here once created"}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -593,7 +925,7 @@ export function BoardKanbanView({
                 </tr>
               </thead>
               <tbody>
-                {taskTableRows.map(({ task, statusLabel, assigneeLabel }) => (
+                {taskTableRows.map(({ task, statusLabel, assigneeLabel, isTodoColumn }) => (
                   <tr
                     key={task.id}
                     className="border-b border-card-border/70 last:border-b-0"
@@ -613,7 +945,7 @@ export function BoardKanbanView({
                       {task.priorityName ?? "—"}
                     </td>
                     <td className="px-6 py-4 align-top tabular-nums text-muted">
-                      {statusLabel === TODO_STATUS_NAME ? "0%" : `${task.progress ?? 0}%`}
+                      {isTodoColumn ? "0%" : `${task.progress ?? 0}%`}
                     </td>
                     <td className="px-6 py-4 align-top whitespace-nowrap text-muted">
                       {task.deadline
@@ -958,6 +1290,77 @@ export function BoardKanbanView({
                     Cancel
                   </button>
                 </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isColumnModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            aria-label="Close dialog"
+            onClick={closeColumnModal}
+          />
+
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="relative w-full max-w-sm rounded-2xl border border-card-border bg-surface-window glow-purple"
+          >
+            <div className="border-b border-card-border px-6 py-5">
+              <h2 className="text-lg font-semibold">
+                {columnModalMode === "rename" ? "Rename column" : "Add column"}
+              </h2>
+              <p className="mt-1 text-sm text-muted">
+                {columnModalMode === "rename"
+                  ? "Change how this column appears on the board"
+                  : "Create a new column for tasks"}
+              </p>
+            </div>
+
+            <form onSubmit={handleColumnModalSubmit} className="space-y-4 px-6 py-5">
+              {columnModalError && (
+                <div role="alert" className="auth-form-error rounded-xl px-4 py-3 text-sm">
+                  {columnModalError}
+                </div>
+              )}
+
+              <Field label="Name" htmlFor="column-name" error={columnModalError ?? undefined} required>
+                <input
+                  id="column-name"
+                  type="text"
+                  maxLength={40}
+                  value={columnNameInput}
+                  onChange={(e) => {
+                    setColumnNameInput(e.target.value);
+                    if (columnModalError) setColumnModalError(null);
+                  }}
+                  disabled={isManagingColumns}
+                  className="auth-input w-full"
+                  placeholder="Column name"
+                  autoFocus
+                />
+              </Field>
+
+              <div className="flex justify-end gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={closeColumnModal}
+                  disabled={isManagingColumns}
+                  className="rounded-xl border border-card-border px-5 py-2.5 text-sm font-medium text-muted transition-colors hover:text-foreground disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isManagingColumns || !columnNameInput.trim()}
+                  className="rounded-xl bg-gradient-to-r from-accent-purple to-[#6366f1] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  {isManagingColumns ? "Saving..." : "Save"}
+                </button>
               </div>
             </form>
           </div>

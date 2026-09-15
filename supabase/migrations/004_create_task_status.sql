@@ -1,4 +1,4 @@
--- Task status lookup table
+-- Default status names seeded into board_statuses when a board is created (templates only)
 create table if not exists public.task_status (
   id uuid primary key default gen_random_uuid(),
   name text not null unique

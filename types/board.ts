@@ -35,6 +35,7 @@ export interface BoardColumn {
   id: string;
   label: string;
   dotColor: string;
+  isTodo: boolean;
   tasks: BoardTask[];
 }
 

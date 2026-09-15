@@ -4,7 +4,6 @@ import type { BoardColumn } from "@/types/board";
 import { useDroppable } from "@dnd-kit/core";
 import { KanbanCard } from "./kanban-card";
 import { KanbanDraggableTask } from "./kanban-draggable-task";
-import { TODO_STATUS_NAME } from "@/lib/kanban-utils";
 import { cn } from "@/lib/utils";
 
 interface KanbanColumnTasksProps {
@@ -26,7 +25,7 @@ export function KanbanColumnStatic({ column, onEditTask }: KanbanColumnTasksProp
             key={task.id}
             task={task}
             columnId={column.id}
-            hideProgress={column.label === TODO_STATUS_NAME}
+            hideProgress={column.isTodo}
             onClick={() => onEditTask(task)}
           />
         ))
@@ -67,7 +66,7 @@ export function KanbanColumnDrop({
             key={task.id}
             task={task}
             columnId={column.id}
-            hideProgress={column.label === TODO_STATUS_NAME}
+            hideProgress={column.isTodo}
             onEdit={() => onEditTask(task)}
             disabled={dragDisabled}
           />

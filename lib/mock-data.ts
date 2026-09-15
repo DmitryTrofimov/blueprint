@@ -133,6 +133,7 @@ export const boardColumns: BoardColumn[] = [
     id: "todo",
     label: "To Do",
     dotColor: "bg-zinc-400",
+    isTodo: true,
     tasks: [
       {
         id: "1",
@@ -164,6 +165,7 @@ export const boardColumns: BoardColumn[] = [
     id: "in_progress",
     label: "In Progress",
     dotColor: "bg-accent-blue",
+    isTodo: false,
     tasks: [
       {
         id: "4",
@@ -187,6 +189,7 @@ export const boardColumns: BoardColumn[] = [
     id: "review",
     label: "Review",
     dotColor: "bg-accent-orange",
+    isTodo: false,
     tasks: [
       {
         id: "6",
@@ -202,6 +205,7 @@ export const boardColumns: BoardColumn[] = [
     id: "done",
     label: "Done",
     dotColor: "bg-accent-green",
+    isTodo: false,
     tasks: [
       {
         id: "7",

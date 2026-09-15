@@ -16,15 +16,18 @@ export const TODO_STATUS_NAME = "ToDo";
 
 export function isTodoStatusId(
   statusId: string,
-  statuses: { id: string; name: string }[],
+  statuses: { id: string; name: string; isTodo?: boolean }[],
 ): boolean {
-  return statuses.find((s) => s.id === statusId)?.name === TODO_STATUS_NAME;
+  const status = statuses.find((s) => s.id === statusId);
+  if (!status) return false;
+  if (status.isTodo !== undefined) return status.isTodo;
+  return status.name === TODO_STATUS_NAME;
 }
 
 export function progressForStatus(
   statusId: string,
   progress: number,
-  statuses: { id: string; name: string }[],
+  statuses: { id: string; name: string; isTodo?: boolean }[],
 ): number {
   return isTodoStatusId(statusId, statuses) ? 0 : progress;
 }

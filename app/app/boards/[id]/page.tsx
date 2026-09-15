@@ -18,7 +18,7 @@ export default async function BoardDetailPage({ params }: BoardPageProps) {
   const [boardResult, kanbanResult, formOptionsResult, profile] = await Promise.all([
     getBoardById(id),
     getBoardKanbanColumns(id),
-    getTaskFormOptions(),
+    getTaskFormOptions(id),
     getCurrentUserProfile(),
   ]);
 
@@ -65,7 +65,6 @@ export default async function BoardDetailPage({ params }: BoardPageProps) {
           boardId={board.id}
           createdByName={profile.username}
           initialColumns={kanbanResult.columns}
-          statusOptions={formOptionsResult.statuses}
           priorityOptions={formOptionsResult.priorities}
           assigneeOptions={formOptionsResult.assignees}
           initialError={loadError}

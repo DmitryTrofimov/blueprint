@@ -1,12 +1,7 @@
 import type { BoardItem } from "@/types/board";
 import type { BoardColumn } from "@/types/board";
 import type { TaskAssigneeOption, TaskLookupOption } from "@/types/task-form";
-import {
-  getStatusDotColor,
-  sortPrioritiesByWorkflow,
-  sortStatusesByWorkflow,
-  toBoardTask,
-} from "@/lib/kanban-utils";
+import { getStatusDotColor, sortPrioritiesByWorkflow, toBoardTask } from "@/lib/kanban-utils";
 import { normalizeTaskTags } from "@/lib/task-form-validation";
 import { createClient } from "./server";
 
@@ -73,9 +68,11 @@ export async function getBoardById(id: string): Promise<{
   return { data: mapRowToItem(data as BoardRow), error: null };
 }
 
-interface TaskStatusRow {
+interface BoardStatusRow {
   id: string;
   name: string;
+  position: number;
+  is_todo: boolean;
 }
 
 interface TaskRow {
@@ -98,7 +95,7 @@ interface UserDirectoryRow {
   role_name: string;
 }
 
-export async function getTaskFormOptions(): Promise<{
+export async function getTaskFormOptions(boardId: string): Promise<{
   statuses: TaskLookupOption[];
   priorities: TaskLookupOption[];
   assignees: TaskAssigneeOption[];
@@ -107,7 +104,11 @@ export async function getTaskFormOptions(): Promise<{
   const supabase = await createClient();
 
   const [statusResult, priorityResult, assigneeResult] = await Promise.all([
-    supabase.from("task_status").select("id, name"),
+    supabase
+      .from("board_statuses")
+      .select("id, name, is_todo")
+      .eq("board_id", boardId)
+      .order("position", { ascending: true }),
     supabase.from("task_priority").select("id, name"),
     supabase.from("user_directory").select("user_id, username, role_name").order("username"),
   ]);
@@ -125,9 +126,11 @@ export async function getTaskFormOptions(): Promise<{
   }
 
   return {
-    statuses: sortStatusesByWorkflow((statusResult.data ?? []) as TaskStatusRow[]).map(
-      (row) => ({ id: row.id, name: row.name }),
-    ),
+    statuses: ((statusResult.data ?? []) as BoardStatusRow[]).map((row) => ({
+      id: row.id,
+      name: row.name,
+      isTodo: row.is_todo,
+    })),
     priorities: sortPrioritiesByWorkflow((priorityResult.data ?? []) as TaskLookupOption[]).map(
       (row) => ({
         id: row.id,
@@ -150,7 +153,11 @@ export async function getBoardKanbanColumns(boardId: string): Promise<{
   const supabase = await createClient();
 
   const [statusResult, tasksResult, directoryResult] = await Promise.all([
-    supabase.from("task_status").select("id, name"),
+    supabase
+      .from("board_statuses")
+      .select("id, name, position, is_todo")
+      .eq("board_id", boardId)
+      .order("position", { ascending: true }),
     supabase
       .from("tasks")
       .select(
@@ -173,7 +180,7 @@ export async function getBoardKanbanColumns(boardId: string): Promise<{
     return { columns: [], error: directoryResult.error.message };
   }
 
-  const statuses = sortStatusesByWorkflow((statusResult.data ?? []) as TaskStatusRow[]);
+  const statuses = (statusResult.data ?? []) as BoardStatusRow[];
   const tasks = (tasksResult.data ?? []) as TaskRow[];
   const assigneeNames = new Map(
     ((directoryResult.data ?? []) as { user_id: string; username: string }[]).map(
@@ -189,6 +196,7 @@ export async function getBoardKanbanColumns(boardId: string): Promise<{
       id: status.id,
       label: status.name,
       dotColor: getStatusDotColor(status.name),
+      isTodo: status.is_todo,
       tasks: statusTasks.map((task) => {
         const priorityJoin = task.task_priority;
         const priorityName = Array.isArray(priorityJoin)
