@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { BoardKanbanView } from "@/components/app/board-kanban-view";
 import { Topbar } from "@/components/app/topbar";
-import { getBoardById, getBoardKanbanColumns } from "@/lib/supabase/boards-server";
+import {
+  getBoardById,
+  getBoardKanbanColumns,
+  getTaskFormOptions,
+} from "@/lib/supabase/boards-server";
+import { getCurrentUserProfile } from "@/lib/supabase/profile-server";
 import { notFound } from "next/navigation";
 
 interface BoardPageProps {
@@ -10,9 +15,11 @@ interface BoardPageProps {
 
 export default async function BoardDetailPage({ params }: BoardPageProps) {
   const { id } = await params;
-  const [boardResult, kanbanResult] = await Promise.all([
+  const [boardResult, kanbanResult, formOptionsResult, profile] = await Promise.all([
     getBoardById(id),
     getBoardKanbanColumns(id),
+    getTaskFormOptions(),
+    getCurrentUserProfile(),
   ]);
 
   if (boardResult.error) {
@@ -33,6 +40,8 @@ export default async function BoardDetailPage({ params }: BoardPageProps) {
   }
 
   const board = boardResult.data;
+  const loadError =
+    kanbanResult.error ?? formOptionsResult.error ?? null;
 
   return (
     <>
@@ -52,13 +61,15 @@ export default async function BoardDetailPage({ params }: BoardPageProps) {
           <span>Created by {board.createdBy}</span>
         </div>
 
-        {kanbanResult.error && (
-          <div role="alert" className="auth-form-error mb-4 rounded-xl px-4 py-3 text-sm">
-            {kanbanResult.error}
-          </div>
-        )}
-
-        <BoardKanbanView columns={kanbanResult.columns} />
+        <BoardKanbanView
+          boardId={board.id}
+          createdByName={profile.username}
+          initialColumns={kanbanResult.columns}
+          statusOptions={formOptionsResult.statuses}
+          priorityOptions={formOptionsResult.priorities}
+          assigneeOptions={formOptionsResult.assignees}
+          initialError={loadError}
+        />
       </main>
     </>
   );

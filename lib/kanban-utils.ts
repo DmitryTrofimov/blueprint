@@ -8,6 +8,10 @@ export const TASK_STATUS_ORDER = [
   "Completed",
 ] as const;
 
+export const TASK_PRIORITY_ORDER = ["Urgent", "High", "Average", "Low"] as const;
+
+export const DEFAULT_TASK_PRIORITY_NAME = "Average";
+
 export function getStatusDotColor(statusName: string): string {
   switch (statusName) {
     case "ToDo":
@@ -20,6 +24,21 @@ export function getStatusDotColor(statusName: string): string {
       return "bg-accent-orange";
     case "Completed":
       return "bg-accent-green";
+    default:
+      return "bg-zinc-400";
+  }
+}
+
+export function getPriorityDotColor(priorityName: string): string {
+  switch (priorityName) {
+    case "Urgent":
+      return "bg-red-700";
+    case "High":
+      return "bg-orange-500";
+    case "Average":
+      return "bg-yellow-400";
+    case "Low":
+      return "bg-emerald-500";
     default:
       return "bg-zinc-400";
   }
@@ -68,17 +87,32 @@ export function toBoardTask(params: {
   id: string;
   title: string;
   createdByName: string;
+  assigneeName?: string | null;
   priorityName?: string | null;
   columnKey: string;
+  description?: string;
+  statusId?: string;
+  priorityId?: string;
+  assignedTo?: string;
+  tags?: string[];
 }): BoardTask {
-  const assignee = getInitialsFromName(params.createdByName || "?");
+  const assigneeLabel =
+    params.assigneeName?.trim() || params.createdByName?.trim() || "?";
+  const assignee = getInitialsFromName(assigneeLabel);
   return {
     id: params.id,
     title: params.title,
     ai: false,
     assignee,
-    assigneeColor: getAssigneeColor(params.createdByName || params.id),
+    assigneeColor: getAssigneeColor(assigneeLabel || params.id),
+    priorityName: params.priorityName?.trim() || undefined,
     priority: mapPriorityNameToBoardPriority(params.priorityName),
+    description: params.description,
+    statusId: params.statusId,
+    priorityId: params.priorityId,
+    assignedTo: params.assignedTo,
+    createdByName: params.createdByName,
+    tags: params.tags?.length ? params.tags : undefined,
   };
 }
 
@@ -87,5 +121,13 @@ export function sortStatusesByWorkflow<T extends { name: string }>(statuses: T[]
   return [...statuses].sort(
     (a, b) => (order.get(a.name as (typeof TASK_STATUS_ORDER)[number]) ?? 99) -
       (order.get(b.name as (typeof TASK_STATUS_ORDER)[number]) ?? 99),
+  );
+}
+
+export function sortPrioritiesByWorkflow<T extends { name: string }>(priorities: T[]): T[] {
+  const order = new Map(TASK_PRIORITY_ORDER.map((name, index) => [name, index]));
+  return [...priorities].sort(
+    (a, b) => (order.get(a.name as (typeof TASK_PRIORITY_ORDER)[number]) ?? 99) -
+      (order.get(b.name as (typeof TASK_PRIORITY_ORDER)[number]) ?? 99),
   );
 }

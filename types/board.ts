@@ -15,8 +15,18 @@ export interface BoardTask {
   ai: boolean;
   assignee: string;
   assigneeColor: string;
+  /** Priority label from task_priority (e.g. Urgent, Average). */
+  priorityName?: string;
+  /** Legacy mock kanban mapping. */
   priority?: BoardPriority;
   progress?: number;
+  /** Populated for board tasks loaded from Supabase (edit form). */
+  description?: string;
+  statusId?: string;
+  priorityId?: string;
+  assignedTo?: string;
+  createdByName?: string;
+  tags?: string[];
 }
 
 export interface BoardColumn {

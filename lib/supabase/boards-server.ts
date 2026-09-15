@@ -1,10 +1,13 @@
 import type { BoardItem } from "@/types/board";
 import type { BoardColumn } from "@/types/board";
+import type { TaskAssigneeOption, TaskLookupOption } from "@/types/task-form";
 import {
   getStatusDotColor,
+  sortPrioritiesByWorkflow,
   sortStatusesByWorkflow,
   toBoardTask,
 } from "@/lib/kanban-utils";
+import { normalizeTaskTags } from "@/lib/task-form-validation";
 import { createClient } from "./server";
 
 interface BoardRow {
@@ -78,9 +81,64 @@ interface TaskStatusRow {
 interface TaskRow {
   id: string;
   title: string;
+  description: string;
+  tags: string[] | null;
   status_id: string;
+  priority_id: string | null;
   created_by_name: string;
+  assigned_to: string | null;
   task_priority: { name: string } | { name: string }[] | null;
+}
+
+interface UserDirectoryRow {
+  user_id: string;
+  username: string;
+  role_name: string;
+}
+
+export async function getTaskFormOptions(): Promise<{
+  statuses: TaskLookupOption[];
+  priorities: TaskLookupOption[];
+  assignees: TaskAssigneeOption[];
+  error: string | null;
+}> {
+  const supabase = await createClient();
+
+  const [statusResult, priorityResult, assigneeResult] = await Promise.all([
+    supabase.from("task_status").select("id, name"),
+    supabase.from("task_priority").select("id, name"),
+    supabase.from("user_directory").select("user_id, username, role_name").order("username"),
+  ]);
+
+  if (statusResult.error) {
+    return { statuses: [], priorities: [], assignees: [], error: statusResult.error.message };
+  }
+
+  if (priorityResult.error) {
+    return { statuses: [], priorities: [], assignees: [], error: priorityResult.error.message };
+  }
+
+  if (assigneeResult.error) {
+    return { statuses: [], priorities: [], assignees: [], error: assigneeResult.error.message };
+  }
+
+  return {
+    statuses: sortStatusesByWorkflow((statusResult.data ?? []) as TaskStatusRow[]).map(
+      (row) => ({ id: row.id, name: row.name }),
+    ),
+    priorities: sortPrioritiesByWorkflow((priorityResult.data ?? []) as TaskLookupOption[]).map(
+      (row) => ({
+        id: row.id,
+        name: row.name,
+      }),
+    ),
+    assignees: ((assigneeResult.data ?? []) as UserDirectoryRow[]).map((row) => ({
+      userId: row.user_id,
+      username: row.username,
+      roleName: row.role_name,
+    })),
+    error: null,
+  };
 }
 
 export async function getBoardKanbanColumns(boardId: string): Promise<{
@@ -89,13 +147,16 @@ export async function getBoardKanbanColumns(boardId: string): Promise<{
 }> {
   const supabase = await createClient();
 
-  const [statusResult, tasksResult] = await Promise.all([
+  const [statusResult, tasksResult, directoryResult] = await Promise.all([
     supabase.from("task_status").select("id, name"),
     supabase
       .from("tasks")
-      .select("id, title, status_id, created_by_name, task_priority(name)")
+      .select(
+        "id, title, description, tags, status_id, priority_id, created_by_name, assigned_to, task_priority(name)",
+      )
       .eq("board_id", boardId)
       .order("created_at", { ascending: true }),
+    supabase.from("user_directory").select("user_id, username"),
   ]);
 
   if (statusResult.error) {
@@ -106,8 +167,17 @@ export async function getBoardKanbanColumns(boardId: string): Promise<{
     return { columns: [], error: tasksResult.error.message };
   }
 
+  if (directoryResult.error) {
+    return { columns: [], error: directoryResult.error.message };
+  }
+
   const statuses = sortStatusesByWorkflow((statusResult.data ?? []) as TaskStatusRow[]);
   const tasks = (tasksResult.data ?? []) as TaskRow[];
+  const assigneeNames = new Map(
+    ((directoryResult.data ?? []) as { user_id: string; username: string }[]).map(
+      (row) => [row.user_id, row.username] as const,
+    ),
+  );
 
   const columns: BoardColumn[] = statuses.map((status) => {
     const statusTasks = tasks.filter((task) => task.status_id === status.id);
@@ -122,13 +192,22 @@ export async function getBoardKanbanColumns(boardId: string): Promise<{
         const priorityName = Array.isArray(priorityJoin)
           ? priorityJoin[0]?.name
           : priorityJoin?.name;
+        const assigneeName = task.assigned_to
+          ? assigneeNames.get(task.assigned_to)
+          : null;
 
         return toBoardTask({
           id: task.id,
           title: task.title,
+          description: task.description,
+          statusId: task.status_id,
+          priorityId: task.priority_id ?? "",
+          assignedTo: task.assigned_to ?? "",
           createdByName: task.created_by_name,
+          assigneeName,
           priorityName,
           columnKey,
+          tags: normalizeTaskTags(task.tags ?? []),
         });
       }),
     };

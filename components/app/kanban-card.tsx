@@ -1,11 +1,25 @@
 import type { BoardPriority, BoardTask } from "@/types/board";
+import { getPriorityDotColor } from "@/lib/kanban-utils";
 import { cn } from "@/lib/utils";
 
-const priorityStyles: Record<BoardPriority, { dot: string; label: string }> = {
+const legacyPriorityStyles: Record<BoardPriority, { dot: string; label: string }> = {
   high: { dot: "bg-red-500", label: "High" },
   med: { dot: "bg-amber-500", label: "Med" },
   low: { dot: "bg-emerald-500", label: "Low" },
 };
+
+function getTaskPriorityDisplay(task: BoardTask): { dot: string; label: string } | null {
+  if (task.priorityName) {
+    return {
+      dot: getPriorityDotColor(task.priorityName),
+      label: task.priorityName,
+    };
+  }
+  if (task.priority) {
+    return legacyPriorityStyles[task.priority];
+  }
+  return null;
+}
 
 const progressBarColor: Record<string, string> = {
   in_progress: "bg-accent-blue",
@@ -15,11 +29,19 @@ const progressBarColor: Record<string, string> = {
 interface KanbanCardProps {
   task: BoardTask;
   columnId: string;
+  onClick?: () => void;
 }
 
-export function KanbanCard({ task, columnId }: KanbanCardProps) {
-  return (
-    <div className="rounded-xl border border-white/[0.06] bg-[#1c1c1f] p-3.5 transition-colors hover:border-white/10">
+export function KanbanCard({ task, columnId, onClick }: KanbanCardProps) {
+  const priorityDisplay = getTaskPriorityDisplay(task);
+
+  const className = cn(
+    "w-full rounded-xl border border-white/[0.06] bg-[#1c1c1f] p-3.5 text-left transition-colors",
+    onClick ? "hover:border-white/10" : "hover:border-white/10",
+  );
+
+  const content = (
+    <>
       <div className="mb-2.5 flex items-start justify-between gap-2">
         {task.ai ? (
           <span className="inline-flex items-center gap-1 rounded-md bg-accent-purple/15 px-2 py-0.5 text-[11px] font-medium text-accent-purple-light">
@@ -42,10 +64,23 @@ export function KanbanCard({ task, columnId }: KanbanCardProps) {
 
       <p className="text-sm font-medium leading-snug text-foreground">{task.title}</p>
 
-      {task.priority && (
+      {task.tags && task.tags.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {task.tags.map((tag) => (
+            <span
+              key={tag}
+              className="rounded-md bg-accent-purple/15 px-1.5 py-0.5 text-[10px] font-medium uppercase text-accent-purple-light"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {priorityDisplay && (
         <div className="mt-3 flex items-center gap-1.5">
-          <span className={cn("h-1.5 w-1.5 rounded-full", priorityStyles[task.priority].dot)} />
-          <span className="text-xs text-muted">{priorityStyles[task.priority].label}</span>
+          <span className={cn("h-1.5 w-1.5 rounded-full", priorityDisplay.dot)} />
+          <span className="text-xs text-muted">{priorityDisplay.label}</span>
         </div>
       )}
 
@@ -60,6 +95,16 @@ export function KanbanCard({ task, columnId }: KanbanCardProps) {
           <p className="mt-1.5 text-[11px] text-muted">{task.progress}% complete</p>
         </div>
       )}
-    </div>
+    </>
   );
+
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={className}>
+        {content}
+      </button>
+    );
+  }
+
+  return <div className={className}>{content}</div>;
 }
