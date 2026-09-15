@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { BoardItem } from "@/types/board";
 import {
   createBoard,
@@ -234,7 +235,12 @@ export function BoardsTable({
                             aria-label="Edit board name"
                           />
                         ) : (
-                          <span className="font-medium text-foreground">{board.name}</span>
+                          <Link
+                            href={`/app/boards/${board.id}`}
+                            className="font-medium text-accent-purple-light transition-colors hover:text-foreground"
+                          >
+                            {board.name}
+                          </Link>
                         )}
                       </td>
                       <td className="px-6 py-4 align-top text-muted">

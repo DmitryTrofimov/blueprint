@@ -33,7 +33,7 @@ export const tasks: Task[] = [
     title: "Design system audit",
     description: "Review and update component library",
     status: "todo",
-    priority: "medium",
+    priority: "average",
     assigneeId: "2",
     aiGenerated: true,
     tags: ["design"],
