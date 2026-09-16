@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { planTasksWithAi } from "@/lib/supabase/anymodel-chat";
+import { useBoardAiSync } from "@/components/app/board-ai-sync";
+import { useCallback, useMemo, useState } from "react";
 
 const navItems = [
   {
@@ -44,14 +47,105 @@ const navItems = [
   },
 ];
 
+const BOARD_PATH_RE = /^\/app\/boards\/([^/]+)/;
+
 interface SidebarProps {
   username: string;
   role: string;
   initials: string;
 }
 
+function parseBoardIdFromPathname(pathname: string): string | null {
+  const match = pathname.match(BOARD_PATH_RE);
+  return match?.[1] ?? null;
+}
+
+function SidebarTaskChat({ boardId }: { boardId: string }) {
+  const { publishAiTasksCreated } = useBoardAiSync();
+  const [taskText, setTaskText] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = useCallback(
+    async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const task = taskText.trim();
+      if (!task) {
+        setError("Describe the task you want to plan.");
+        return;
+      }
+
+      setIsSubmitting(true);
+      setError(null);
+
+      const { data, error: planError } = await planTasksWithAi(boardId, { task });
+
+      setIsSubmitting(false);
+
+      if (planError || !data) {
+        setError(planError ?? "Failed to plan tasks.");
+        return;
+      }
+
+      publishAiTasksCreated({
+        boardId: data.board_id,
+        statusId: data.status_id,
+        plannedSubtasks: data.planned_subtasks,
+        assignments: data.assignments,
+        createdTasks: data.created_tasks,
+      });
+
+      setTaskText("");
+    },
+    [boardId, taskText, publishAiTasksCreated],
+  );
+
+  return (
+    <section
+      className="border-t border-card-border p-4"
+      aria-label="AI task planning chat"
+    >
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
+        Plan tasks with AI
+      </h2>
+      <p className="mt-1 text-xs text-muted">
+        Describe scope of work for this board. AI splits it into ToDo tasks with assignees
+      </p>
+
+      <form onSubmit={handleSubmit} className="mt-3 space-y-2">
+        {error ? (
+          <p role="alert" className="auth-error text-xs">
+            {error}
+          </p>
+        ) : null}
+
+        <textarea
+          value={taskText}
+          onChange={(event) => {
+            setTaskText(event.target.value);
+            if (error) setError(null);
+          }}
+          disabled={isSubmitting}
+          rows={4}
+          placeholder="e.g. Launch login page with Google auth and error states"
+          className="auth-input w-full resize-none text-sm"
+        />
+
+        <button
+          type="submit"
+          disabled={isSubmitting || !taskText.trim()}
+          className="w-full rounded-lg bg-gradient-to-r from-accent-purple to-[#6366f1] px-3 py-2 text-sm font-semibold text-white transition-opacity hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isSubmitting ? "Planning…" : "Generate"}
+        </button>
+      </form>
+    </section>
+  );
+}
+
 export function Sidebar({ username, role, initials }: SidebarProps) {
   const pathname = usePathname();
+  const boardId = useMemo(() => parseBoardIdFromPathname(pathname), [pathname]);
 
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-card-border bg-surface">
@@ -66,7 +160,7 @@ export function Sidebar({ username, role, initials }: SidebarProps) {
         </Link>
       </div>
 
-      <nav className="flex-1 space-y-1 p-4" aria-label="App navigation">
+      <nav className="flex-1 space-y-1 overflow-y-auto p-4" aria-label="App navigation">
         {navItems.map((item) => {
           const isActive =
             item.href === "/app"
@@ -90,6 +184,8 @@ export function Sidebar({ username, role, initials }: SidebarProps) {
           );
         })}
       </nav>
+
+      {boardId ? <SidebarTaskChat boardId={boardId} /> : null}
 
       <div className="border-t border-card-border p-4">
         <Link

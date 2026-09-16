@@ -146,6 +146,13 @@ export async function getTaskFormOptions(boardId: string): Promise<{
   };
 }
 
+function taskIsAiTagged(tags: string[]): boolean {
+  return tags.some((tag) => {
+    const normalized = tag.trim().toLowerCase();
+    return normalized === "ai" || normalized === "ai-planned";
+  });
+}
+
 export async function getBoardKanbanColumns(boardId: string): Promise<{
   columns: BoardColumn[];
   error: string | null;
@@ -206,21 +213,26 @@ export async function getBoardKanbanColumns(boardId: string): Promise<{
           ? assigneeNames.get(task.assigned_to)
           : null;
 
-        return toBoardTask({
-          id: task.id,
-          title: task.title,
-          description: task.description,
-          statusId: task.status_id,
-          priorityId: task.priority_id ?? "",
-          assignedTo: task.assigned_to ?? "",
-          createdByName: task.created_by_name,
-          assigneeName,
-          priorityName,
-          columnKey,
-          tags: normalizeTaskTags(task.tags ?? []),
-          deadline: task.deadline ?? undefined,
-          progress: task.progress,
-        });
+        const tags = normalizeTaskTags(task.tags ?? []);
+
+        return {
+          ...toBoardTask({
+            id: task.id,
+            title: task.title,
+            description: task.description,
+            statusId: task.status_id,
+            priorityId: task.priority_id ?? "",
+            assignedTo: task.assigned_to ?? "",
+            createdByName: task.created_by_name,
+            assigneeName,
+            priorityName,
+            columnKey,
+            tags,
+            deadline: task.deadline ?? undefined,
+            progress: task.progress,
+          }),
+          ai: taskIsAiTagged(tags),
+        };
       }),
     };
   });

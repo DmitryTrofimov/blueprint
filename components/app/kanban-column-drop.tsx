@@ -14,7 +14,7 @@ interface KanbanColumnTasksProps {
 /** SSR / pre-hydration list without @dnd-kit (avoids aria-describedby hydration mismatch). */
 export function KanbanColumnStatic({ column, onEditTask }: KanbanColumnTasksProps) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-y-contain rounded-xl">
+    <div className="flex h-full min-h-0 flex-1 flex-col justify-start gap-2.5 overflow-y-auto overscroll-y-contain rounded-xl pb-1">
       {column.tasks.length === 0 ? (
         <div className="rounded-xl border border-white/[0.06] bg-[#1c1c1f] px-3.5 py-8 text-center text-xs text-muted">
           No tasks yet
@@ -52,7 +52,7 @@ export function KanbanColumnDrop({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-y-contain rounded-xl transition-colors",
+        "flex h-full min-h-0 flex-1 flex-col justify-start gap-2.5 overflow-y-auto overscroll-y-contain rounded-xl pb-1 transition-colors",
         isOver && "bg-accent-purple/5 ring-1 ring-inset ring-accent-purple/25",
       )}
     >

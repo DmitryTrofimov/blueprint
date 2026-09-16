@@ -51,10 +51,12 @@ import {
   progressForStatus,
 } from "@/lib/kanban-utils";
 import { cn } from "@/lib/utils";
+import { useBoardAiSync } from "@/components/app/board-ai-sync";
+import type { AiTasksCreatedDetail } from "@/lib/ai-task-plan-events";
+import { mergeAiTasksIntoColumns } from "@/lib/map-ai-tasks-to-board";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 const BOARD_PANEL_MAX_HEIGHT = "calc(100vh - 12rem)";
-const COLUMN_MAX_HEIGHT = "calc(100vh - 12rem - 2.5rem)";
 
 interface BoardKanbanViewProps {
   boardId: string;
@@ -236,6 +238,7 @@ export function BoardKanbanView({
   const [activeDragColumnId, setActiveDragColumnId] = useState<string | null>(null);
   const [isMovingTask, setIsMovingTask] = useState(false);
 
+  const { subscribeAiTasksCreated } = useBoardAiSync();
   const dragSensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 8 },
@@ -409,9 +412,25 @@ export function BoardKanbanView({
     };
   }, [isTaskModalOpen, closeTaskModal]);
 
+  const applyAiTasksToBoard = useCallback(
+    (detail: AiTasksCreatedDetail) => {
+      if (detail.boardId !== boardId) return;
+
+      setAssigneeFilterUserId("");
+      setColumns((prev) => mergeAiTasksIntoColumns(prev, detail, assigneeOptions));
+      setActionError(null);
+    },
+    [assigneeOptions, boardId],
+  );
+
   useEffect(() => {
     setIsDndReady(true);
   }, []);
+
+  useEffect(() => {
+    const unsubscribe = subscribeAiTasksCreated(applyAiTasksToBoard);
+    return unsubscribe;
+  }, [applyAiTasksToBoard, subscribeAiTasksCreated]);
 
   const validateForm = (values: CreateTaskFormValues) => {
     const errors: Partial<Record<keyof CreateTaskFormValues, string>> = {};
@@ -661,14 +680,9 @@ export function BoardKanbanView({
     }
   };
 
-  const handleDeleteFromModal = async () => {
-    if (!editingTaskId) return;
-
-    const title = taskForm.title.trim() || "this task";
+  const handleDeleteTask = async (taskId: string, title: string) => {
     const confirmed = window.confirm(`Delete task "${title}"?`);
     if (!confirmed) return;
-
-    const taskId = editingTaskId;
 
     setIsSaving(true);
     setActionError(null);
@@ -679,12 +693,14 @@ export function BoardKanbanView({
     setIsSaving(false);
 
     if (error) {
-      setSubmitError(error);
+      setActionError(error);
       return;
     }
 
     setColumns((prev) => removeTaskFromColumns(prev, taskId));
-    closeTaskModal();
+    if (editingTaskId === taskId) {
+      closeTaskModal();
+    }
   };
 
   const titleTrimmed = taskForm.title.trim();
@@ -705,7 +721,7 @@ export function BoardKanbanView({
   const kanbanPanel = (
     <div
       className={cn(
-        "w-full max-h-[var(--board-panel-max-h)] overflow-hidden rounded-2xl border border-card-border bg-surface-window glow-purple",
+        "flex h-[var(--board-panel-max-h)] max-h-[var(--board-panel-max-h)] w-full flex-col overflow-hidden rounded-2xl border border-card-border bg-surface-window glow-purple",
         className,
       )}
       style={
@@ -714,7 +730,7 @@ export function BoardKanbanView({
         } as CSSProperties
       }
     >
-      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-card-border px-5 py-3">
+      <div className="flex shrink-0 flex-wrap items-end justify-between gap-4 border-b border-card-border px-5 py-3">
         <div className="min-w-[12rem] flex-1 sm:max-w-xs">
           <label htmlFor="board-assignee-filter" className="mb-1.5 block text-xs font-medium text-muted">
             Filter by Assignee
@@ -744,12 +760,11 @@ export function BoardKanbanView({
           +
         </button>
       </div>
-      <div className="flex items-start gap-5 overflow-x-auto p-5">
+      <div className="flex min-h-0 flex-1 gap-5 overflow-x-auto p-5">
         {filteredColumns.map((col) => (
           <div
             key={col.id}
-            className="flex w-[14.4rem] shrink-0 flex-col min-w-[14.4rem]"
-            style={{ maxHeight: COLUMN_MAX_HEIGHT }}
+            className="flex h-full min-h-0 w-[14.4rem] shrink-0 flex-col min-w-[14.4rem]"
           >
             <div className="mb-3 flex shrink-0 items-center gap-1.5">
               <span className={cn("h-2 w-2 shrink-0 rounded-full", col.dotColor)} />
@@ -826,15 +841,17 @@ export function BoardKanbanView({
               </div>
             </div>
 
-            {isDndReady ? (
-              <KanbanColumnDrop
-                column={col}
-                onEditTask={openEditModal}
-                dragDisabled={dragDisabled}
-              />
-            ) : (
-              <KanbanColumnStatic column={col} onEditTask={openEditModal} />
-            )}
+            <div className="min-h-0 flex-1 overflow-hidden">
+              {isDndReady ? (
+                <KanbanColumnDrop
+                  column={col}
+                  onEditTask={openEditModal}
+                  dragDisabled={dragDisabled}
+                />
+              ) : (
+                <KanbanColumnStatic column={col} onEditTask={openEditModal} />
+              )}
+            </div>
 
             <button
               type="button"
@@ -922,6 +939,7 @@ export function BoardKanbanView({
                   <th className="px-6 py-3 font-medium">Deadline</th>
                   <th className="px-6 py-3 font-medium">Assigned to</th>
                   <th className="px-6 py-3 font-medium">Tags</th>
+                  <th className="px-6 py-3 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -968,6 +986,30 @@ export function BoardKanbanView({
                       ) : (
                         <span className="text-muted">—</span>
                       )}
+                    </td>
+                    <td className="px-6 py-4 align-top">
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteTask(task.id, task.title)}
+                        disabled={isSaving || isMovingTask}
+                        aria-label={`Delete task ${task.title}`}
+                        className="rounded-lg border border-red-500/30 p-1.5 text-red-300 transition-colors hover:bg-red-500/10 disabled:opacity-50"
+                      >
+                        <svg
+                          className="h-4 w-4"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          aria-hidden
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -1260,36 +1302,22 @@ export function BoardKanbanView({
                 </select>
               </Field>
 
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-                {taskModalMode === "edit" ? (
-                  <button
-                    type="button"
-                    onClick={handleDeleteFromModal}
-                    disabled={isSaving}
-                    className="rounded-xl border border-red-500/30 px-5 py-2.5 text-sm font-medium text-red-300 transition-colors hover:bg-red-500/10 disabled:opacity-50"
-                  >
-                    Delete
-                  </button>
-                ) : (
-                  <span aria-hidden="true" />
-                )}
-                <div className="flex flex-wrap justify-end gap-3">
-                  <button
-                    type="submit"
-                    disabled={isSaving || !canSubmit}
-                    className="min-w-[5.75rem] rounded-xl bg-gradient-to-r from-accent-purple to-[#6366f1] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-accent-purple/20 transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isSaving ? "Saving..." : "Save"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={closeTaskModal}
-                    disabled={isSaving}
-                    className="min-w-[5.75rem] rounded-xl border border-card-border px-5 py-2.5 text-sm font-medium text-muted transition-colors hover:text-foreground disabled:opacity-50"
-                  >
-                    Cancel
-                  </button>
-                </div>
+              <div className="flex flex-wrap justify-end gap-3 pt-1">
+                <button
+                  type="submit"
+                  disabled={isSaving || !canSubmit}
+                  className="min-w-[5.75rem] rounded-xl bg-gradient-to-r from-accent-purple to-[#6366f1] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-accent-purple/20 transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isSaving ? "Saving..." : "Save"}
+                </button>
+                <button
+                  type="button"
+                  onClick={closeTaskModal}
+                  disabled={isSaving}
+                  className="min-w-[5.75rem] rounded-xl border border-card-border px-5 py-2.5 text-sm font-medium text-muted transition-colors hover:text-foreground disabled:opacity-50"
+                >
+                  Cancel
+                </button>
               </div>
             </form>
           </div>

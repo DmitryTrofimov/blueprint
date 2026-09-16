@@ -43,7 +43,7 @@ export function KanbanCard({ task, columnId, hideProgress = false, onClick }: Ka
 
   const content = (
     <>
-      <div className="mb-2.5 flex items-start justify-between gap-2">
+      <div className="mb-2">
         {task.ai ? (
           <span className="inline-flex items-center gap-1 rounded-md bg-accent-purple/15 px-2 py-0.5 text-[11px] font-medium text-accent-purple-light">
             ✦ AI
@@ -53,6 +53,12 @@ export function KanbanCard({ task, columnId, hideProgress = false, onClick }: Ka
             Manual
           </span>
         )}
+      </div>
+
+      <div className="mb-2.5 flex items-center gap-2">
+        <p className="min-w-0 flex-1 text-sm font-medium leading-snug text-foreground">
+          {task.title}
+        </p>
         <div
           className={cn(
             "flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-[10px] font-bold text-white",
@@ -62,8 +68,6 @@ export function KanbanCard({ task, columnId, hideProgress = false, onClick }: Ka
           {task.assignee}
         </div>
       </div>
-
-      <p className="text-sm font-medium leading-snug text-foreground">{task.title}</p>
 
       {task.tags && task.tags.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">

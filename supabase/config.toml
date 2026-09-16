@@ -1,0 +1,4 @@
+# https://supabase.com/docs/guides/functions/function-configuration
+
+[functions.anymodel-chat]
+verify_jwt = false
