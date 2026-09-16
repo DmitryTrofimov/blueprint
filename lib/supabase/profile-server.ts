@@ -16,6 +16,7 @@ export interface ProfileSettings {
   username: string;
   roleId: string | null;
   roleName: string;
+  telegramUsername: string | null;
   roles: RoleOption[];
 }
 
@@ -105,7 +106,7 @@ export async function getProfileSettings(): Promise<{
   const [profileResult, rolesResult] = await Promise.all([
     supabase
       .from("profiles")
-      .select("username, role_id, roles(name)")
+      .select("username, role_id, telegram_username, roles(name)")
       .eq("id", user.id)
       .maybeSingle(),
     supabase.from("roles").select("id, name").order("name"),
@@ -134,6 +135,7 @@ export async function getProfileSettings(): Promise<{
       username,
       roleId: profile?.role_id ?? null,
       roleName,
+      telegramUsername: profile?.telegram_username?.trim() || null,
       roles,
     },
     error: null,

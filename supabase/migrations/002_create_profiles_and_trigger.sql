@@ -3,8 +3,23 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   username text not null,
   role_id uuid references public.roles (id) on delete set null,
+  telegram_username text,
   created_at timestamptz not null default now()
 );
+
+alter table public.profiles drop constraint if exists profiles_telegram_username_format;
+
+alter table public.profiles add constraint profiles_telegram_username_format check (
+  telegram_username is null
+  or (
+    char_length(trim(telegram_username)) between 5 and 32
+    and trim(telegram_username) ~ '^[A-Za-z0-9_]+$'
+  )
+);
+
+create unique index if not exists profiles_telegram_username_unique_idx
+  on public.profiles (lower(trim(telegram_username)))
+  where telegram_username is not null and trim(telegram_username) <> '';
 
 alter table public.profiles enable row level security;
 

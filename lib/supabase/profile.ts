@@ -1,14 +1,17 @@
+import { normalizeTelegramUsername } from "@/lib/telegram-username";
 import { createClient } from "@/lib/supabase/client";
 
 export interface UpdatedProfile {
   username: string;
   roleId: string;
   roleName: string;
+  telegramUsername: string | null;
 }
 
 export async function updateCurrentUserProfile(params: {
   username: string;
   roleId: string;
+  telegramUsername: string;
 }): Promise<{ data: UpdatedProfile | null; error: string | null }> {
   const supabase = createClient();
   const {
@@ -39,9 +42,10 @@ export async function updateCurrentUserProfile(params: {
     .update({
       username: params.username.trim(),
       role_id: params.roleId,
+      telegram_username: normalizeTelegramUsername(params.telegramUsername),
     })
     .eq("id", user.id)
-    .select("username, role_id, roles(name)")
+    .select("username, role_id, telegram_username, roles(name)")
     .single();
 
   if (error) {
@@ -59,6 +63,7 @@ export async function updateCurrentUserProfile(params: {
       username: data.username,
       roleId: data.role_id,
       roleName,
+      telegramUsername: data.telegram_username?.trim() || null,
     },
     error: null,
   };

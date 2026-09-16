@@ -3,6 +3,10 @@
 import type { ProfileSettings, RoleOption } from "@/lib/supabase/profile-server";
 import { updateCurrentUserProfile } from "@/lib/supabase/profile";
 import { validateUsername } from "@/lib/auth-validation";
+import {
+  formatTelegramUsernameForDisplay,
+  validateTelegramUsername,
+} from "@/lib/telegram-username";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -10,6 +14,7 @@ import { useState } from "react";
 interface ProfileFormValues {
   username: string;
   roleId: string;
+  telegramUsername: string;
 }
 
 interface ProfileSettingsPanelProps {
@@ -30,6 +35,7 @@ export function ProfileSettingsPanel({
   const [editForm, setEditForm] = useState<ProfileFormValues>({
     username: initialSettings.username,
     roleId: initialSettings.roleId ?? "",
+    telegramUsername: initialSettings.telegramUsername ?? "",
   });
   const [editError, setEditError] = useState<string | null>(null);
 
@@ -37,6 +43,7 @@ export function ProfileSettingsPanel({
     setEditForm({
       username: settings.username,
       roleId: settings.roleId ?? settings.roles[0]?.id ?? "",
+      telegramUsername: settings.telegramUsername ?? "",
     });
     setEditError(null);
     setIsEditing(true);
@@ -47,6 +54,7 @@ export function ProfileSettingsPanel({
     setEditForm({
       username: settings.username,
       roleId: settings.roleId ?? "",
+      telegramUsername: settings.telegramUsername ?? "",
     });
     setEditError(null);
   };
@@ -63,12 +71,19 @@ export function ProfileSettingsPanel({
       return;
     }
 
+    const telegramError = validateTelegramUsername(editForm.telegramUsername);
+    if (telegramError) {
+      setEditError(telegramError);
+      return;
+    }
+
     setIsSaving(true);
     setActionError(null);
 
     const { data, error } = await updateCurrentUserProfile({
       username: editForm.username,
       roleId: editForm.roleId,
+      telegramUsername: editForm.telegramUsername,
     });
 
     setIsSaving(false);
@@ -83,6 +98,7 @@ export function ProfileSettingsPanel({
       username: data.username,
       roleId: data.roleId,
       roleName: data.roleName,
+      telegramUsername: data.telegramUsername,
     }));
     setIsEditing(false);
     setEditError(null);
@@ -101,7 +117,9 @@ export function ProfileSettingsPanel({
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-card-border px-6 py-4">
           <div>
             <h2 className="text-base font-semibold">Profile Settings</h2>
-            <p className="mt-1 text-sm text-muted">Update your display name and role</p>
+            <p className="mt-1 text-sm text-muted">
+              Update your display name, role, and Telegram username
+            </p>
           </div>
           {!isEditing && (
             <button
@@ -149,6 +167,19 @@ export function ProfileSettingsPanel({
                 }}
                 inputType="select"
                 roles={settings.roles}
+              />
+              <ProfileFieldRow
+                label="Telegram"
+                isEditing={isEditing}
+                isSaving={isSaving}
+                displayValue={formatTelegramUsernameForDisplay(settings.telegramUsername)}
+                editValue={editForm.telegramUsername}
+                onEditChange={(value) => {
+                  setEditForm((prev) => ({ ...prev, telegramUsername: value }));
+                  if (editError) setEditError(null);
+                }}
+                inputType="text"
+                placeholder="@username"
               />
               {isEditing && (
                 <tr className="border-b border-card-border/70 last:border-b-0">
@@ -198,6 +229,7 @@ function ProfileFieldRow({
   onEditChange,
   inputType,
   roles = [],
+  placeholder,
 }: {
   label: string;
   isEditing: boolean;
@@ -207,6 +239,7 @@ function ProfileFieldRow({
   onEditChange: (value: string) => void;
   inputType: "text" | "select";
   roles?: RoleOption[];
+  placeholder?: string;
 }) {
   return (
     <tr className="border-b border-card-border/70 last:border-b-0">
@@ -236,6 +269,7 @@ function ProfileFieldRow({
               value={editValue}
               onChange={(e) => onEditChange(e.target.value)}
               disabled={isSaving}
+              placeholder={placeholder}
               className="auth-input w-full min-w-[200px]"
               aria-label={`Edit ${label.toLowerCase()}`}
             />
