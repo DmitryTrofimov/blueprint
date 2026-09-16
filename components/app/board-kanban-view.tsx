@@ -1035,7 +1035,7 @@ export function BoardKanbanView({
             aria-modal="true"
             aria-labelledby={titleId}
             aria-describedby={descId}
-            className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-card-border bg-surface-window glow-purple"
+            className="relative max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-card-border bg-surface-window glow-purple"
           >
             <div className="border-b border-card-border px-6 py-5">
               <div className="flex items-start justify-between gap-4">
@@ -1097,96 +1097,7 @@ export function BoardKanbanView({
                 />
               </Field>
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field label="Status" htmlFor="task-status" error={fieldErrors.statusId} required>
-                  <select
-                    id="task-status"
-                    value={taskForm.statusId}
-                    onChange={(e) => {
-                      const statusId = e.target.value;
-                      setTaskForm((prev) => ({
-                        ...prev,
-                        statusId,
-                        progress: isTodoStatusId(statusId, statusOptions) ? 0 : prev.progress,
-                      }));
-                      if (fieldErrors.statusId) {
-                        setFieldErrors((prev) => {
-                          const next = { ...prev };
-                          delete next.statusId;
-                          return next;
-                        });
-                      }
-                    }}
-                    disabled={isSaving}
-                    className={cn(
-                      "auth-input auth-select w-full",
-                      fieldErrors.statusId && "auth-input-error",
-                    )}
-                  >
-                    {statusOptions.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-
-                <Field
-                  label="Priority"
-                  htmlFor="task-priority"
-                  error={fieldErrors.priorityId}
-                  required
-                >
-                  <select
-                    id="task-priority"
-                    value={taskForm.priorityId}
-                    onChange={(e) =>
-                      setTaskForm((prev) => ({ ...prev, priorityId: e.target.value }))
-                    }
-                    disabled={isSaving}
-                    className={cn(
-                      "auth-input auth-select w-full",
-                      fieldErrors.priorityId && "auth-input-error",
-                    )}
-                  >
-                    {priorityOptions.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              </div>
-
-              <Field label="Description" htmlFor="task-description" error={fieldErrors.description}>
-                <textarea
-                  id="task-description"
-                  maxLength={TASK_DESCRIPTION_MAX_LENGTH}
-                  rows={4}
-                  value={taskForm.description}
-                  onChange={(e) => {
-                    setTaskForm((prev) => ({ ...prev, description: e.target.value }));
-                    if (fieldErrors.description) {
-                      setFieldErrors((prev) => {
-                        const next = { ...prev };
-                        delete next.description;
-                        return next;
-                      });
-                    }
-                  }}
-                  disabled={isSaving}
-                  className={cn(
-                    "auth-input w-full resize-y min-h-[6rem]",
-                    fieldErrors.description && "auth-input-error",
-                  )}
-                  placeholder="Optional description"
-                />
-                <p className="mt-1.5 text-right text-xs text-muted">
-                  {taskForm.description.length}/{TASK_DESCRIPTION_MAX_LENGTH}
-                </p>
-              </Field>
-
-              {!isTodoFormStatus ? (
+              {!isTodoFormStatus && (
                 <Field label="Progress" htmlFor="task-progress" error={fieldErrors.progress}>
                   <div className="flex items-center gap-3">
                     <input
@@ -1220,87 +1131,188 @@ export function BoardKanbanView({
                     </span>
                   </div>
                 </Field>
-              ) : (
-                <p className="text-xs text-muted">Progress is 0% for ToDo tasks.</p>
               )}
 
-              <Field label="Deadline" htmlFor="task-deadline" error={fieldErrors.deadline}>
-                <input
-                  id="task-deadline"
-                  type="date"
-                  value={taskForm.deadline}
-                  min={minDeadlineDate}
-                  onChange={(e) => {
-                    setTaskForm((prev) => ({ ...prev, deadline: e.target.value }));
-                    if (fieldErrors.deadline) {
-                      setFieldErrors((prev) => {
-                        const next = { ...prev };
-                        delete next.deadline;
-                        return next;
-                      });
-                    }
-                  }}
-                  disabled={isSaving}
-                  className={cn(
-                    "auth-input auth-date-input w-full",
-                    fieldErrors.deadline && "auth-input-error",
-                  )}
-                />
-              </Field>
+              <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2 md:items-stretch">
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <Field
+                      label="Status"
+                      htmlFor="task-status"
+                      error={fieldErrors.statusId}
+                      required
+                    >
+                      <select
+                        id="task-status"
+                        value={taskForm.statusId}
+                        onChange={(e) => {
+                          const statusId = e.target.value;
+                          setTaskForm((prev) => ({
+                            ...prev,
+                            statusId,
+                            progress: isTodoStatusId(statusId, statusOptions) ? 0 : prev.progress,
+                          }));
+                          if (fieldErrors.statusId) {
+                            setFieldErrors((prev) => {
+                              const next = { ...prev };
+                              delete next.statusId;
+                              return next;
+                            });
+                          }
+                        }}
+                        disabled={isSaving}
+                        className={cn(
+                          "auth-input auth-select w-full",
+                          fieldErrors.statusId && "auth-input-error",
+                        )}
+                      >
+                        {statusOptions.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.name}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
 
-              <TaskTagsField
-                id="task-tags"
-                tags={taskForm.tags}
-                disabled={isSaving}
-                error={fieldErrors.tags}
-                onChange={(tags) => {
-                  setTaskForm((prev) => ({ ...prev, tags }));
-                  if (fieldErrors.tags) {
-                    setFieldErrors((prev) => {
-                      const next = { ...prev };
-                      delete next.tags;
-                      return next;
-                    });
-                  }
-                }}
-              />
+                    <Field
+                      label="Priority"
+                      htmlFor="task-priority"
+                      error={fieldErrors.priorityId}
+                      required
+                    >
+                      <select
+                        id="task-priority"
+                        value={taskForm.priorityId}
+                        onChange={(e) =>
+                          setTaskForm((prev) => ({ ...prev, priorityId: e.target.value }))
+                        }
+                        disabled={isSaving}
+                        className={cn(
+                          "auth-input auth-select w-full",
+                          fieldErrors.priorityId && "auth-input-error",
+                        )}
+                      >
+                        {priorityOptions.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.name}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  </div>
 
-              <Field
-                label="Assigned to"
-                htmlFor="task-assigned-to"
-                error={fieldErrors.assignedTo}
-                required
-              >
-                <select
-                  id="task-assigned-to"
-                  value={taskForm.assignedTo}
-                  onChange={(e) => {
-                    setTaskForm((prev) => ({ ...prev, assignedTo: e.target.value }));
-                    if (fieldErrors.assignedTo) {
-                      setFieldErrors((prev) => {
-                        const next = { ...prev };
-                        delete next.assignedTo;
-                        return next;
-                      });
-                    }
-                  }}
-                  disabled={isSaving}
-                  className={cn(
-                    "auth-input auth-select w-full",
-                    fieldErrors.assignedTo && "auth-input-error",
-                  )}
+                  <Field label="Deadline" htmlFor="task-deadline" error={fieldErrors.deadline}>
+                    <input
+                      id="task-deadline"
+                      type="date"
+                      value={taskForm.deadline}
+                      min={minDeadlineDate}
+                      onChange={(e) => {
+                        setTaskForm((prev) => ({ ...prev, deadline: e.target.value }));
+                        if (fieldErrors.deadline) {
+                          setFieldErrors((prev) => {
+                            const next = { ...prev };
+                            delete next.deadline;
+                            return next;
+                          });
+                        }
+                      }}
+                      disabled={isSaving}
+                      className={cn(
+                        "auth-input auth-date-input w-full",
+                        fieldErrors.deadline && "auth-input-error",
+                      )}
+                    />
+                  </Field>
+                </div>
+
+                <div className="flex min-h-[12rem] flex-col md:min-h-0 md:h-full">
+                  <Field
+                    label="Description"
+                    htmlFor="task-description"
+                    error={fieldErrors.description}
+                    className="flex min-h-0 flex-1 flex-col"
+                  >
+                    <textarea
+                      id="task-description"
+                      maxLength={TASK_DESCRIPTION_MAX_LENGTH}
+                      value={taskForm.description}
+                      onChange={(e) => {
+                        setTaskForm((prev) => ({ ...prev, description: e.target.value }));
+                        if (fieldErrors.description) {
+                          setFieldErrors((prev) => {
+                            const next = { ...prev };
+                            delete next.description;
+                            return next;
+                          });
+                        }
+                      }}
+                      disabled={isSaving}
+                      className={cn(
+                        "auth-input min-h-0 w-full flex-1 resize-none overflow-y-auto",
+                        fieldErrors.description && "auth-input-error",
+                      )}
+                      placeholder="Optional description"
+                    />
+                  </Field>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
+                <Field
+                  label="Assigned to"
+                  htmlFor="task-assigned-to"
+                  error={fieldErrors.assignedTo}
+                  required
                 >
-                  <option value="" disabled>
-                    Select assignee
-                  </option>
-                  {assigneeOptions.map((option) => (
-                    <option key={option.userId} value={option.userId}>
-                      {option.username}
-                      {option.roleName ? ` · ${option.roleName}` : ""}
+                  <select
+                    id="task-assigned-to"
+                    value={taskForm.assignedTo}
+                    onChange={(e) => {
+                      setTaskForm((prev) => ({ ...prev, assignedTo: e.target.value }));
+                      if (fieldErrors.assignedTo) {
+                        setFieldErrors((prev) => {
+                          const next = { ...prev };
+                          delete next.assignedTo;
+                          return next;
+                        });
+                      }
+                    }}
+                    disabled={isSaving}
+                    className={cn(
+                      "auth-input auth-select w-full",
+                      fieldErrors.assignedTo && "auth-input-error",
+                    )}
+                  >
+                    <option value="" disabled>
+                      Select assignee
                     </option>
-                  ))}
-                </select>
-              </Field>
+                    {assigneeOptions.map((option) => (
+                      <option key={option.userId} value={option.userId}>
+                        {option.username}
+                        {option.roleName ? ` · ${option.roleName}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
+                <TaskTagsField
+                  id="task-tags"
+                  tags={taskForm.tags}
+                  disabled={isSaving}
+                  error={fieldErrors.tags}
+                  onChange={(tags) => {
+                    setTaskForm((prev) => ({ ...prev, tags }));
+                    if (fieldErrors.tags) {
+                      setFieldErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.tags;
+                        return next;
+                      });
+                    }
+                  }}
+                />
+              </div>
 
               <div className="flex flex-wrap justify-end gap-3 pt-1">
                 <button
@@ -1403,25 +1415,27 @@ function Field({
   htmlFor,
   error,
   required,
+  className,
   children,
 }: {
   label: string;
   htmlFor: string;
   error?: string;
   required?: boolean;
+  className?: string;
   children: React.ReactNode;
 }) {
   const errorId = `${htmlFor}-error`;
 
   return (
-    <div className="block">
-      <label htmlFor={htmlFor} className="mb-1.5 block text-sm font-medium">
+    <div className={cn("block", className)}>
+      <label htmlFor={htmlFor} className="mb-1.5 block shrink-0 text-sm font-medium">
         {label}
         {required && <span className="text-accent-purple-light"> *</span>}
       </label>
       {children}
       {error && (
-        <p id={errorId} role="alert" className="auth-error mt-1.5 text-xs">
+        <p id={errorId} role="alert" className="auth-error mt-1.5 shrink-0 text-xs">
           {error}
         </p>
       )}

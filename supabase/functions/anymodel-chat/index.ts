@@ -610,3 +610,5 @@ Deno.serve(async (req: Request): Promise<Response> => {
     created_tasks: created,
   });
 });
+
+export {};
